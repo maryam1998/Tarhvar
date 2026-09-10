@@ -1,11 +1,9 @@
 // PROGRESS.js
-// نسخه 2.0 — هم‌راستا با SCHEMAS.js v2.0
-// ذخیره‌سازی محلی + آمار + موتور بینش (Rule-Based)
-// بدون AI، بدون شبکه، بدون API
+// نسخه 3.0 — با قابلیت‌های جدید: لحظه‌های برد، چک‌این روزانه، تقویم
+// بدون AI، بدون API
 
 /* =========================================================
- * ۱. لایه ذخیره‌سازی (Adapter)
- * پیش‌فرض: localStorage. برای React Native با setStorage عوض کن.
+ * ۱. لایه ذخیره‌سازی
  * ========================================================= */
 
 let _storage = null;
@@ -36,7 +34,9 @@ function storage() {
   return _storage;
 }
 
-const STORAGE_KEY = "ysq_progress_v2";
+const STORAGE_KEY = "ysq_progress_v3";
+const CHECKIN_KEY = "ysq_checkins_v1";
+const PROFILE_KEY = "ysq_profile_v2";
 
 /* =========================================================
  * ۲. ساختار هر ثبت
@@ -54,12 +54,13 @@ export function createEntry(input) {
     thoughtId: input.thoughtId || null,
     emotionId: input.emotionId || null,
     behaviorId: input.behaviorId || null,
-    reactionType: input.reactionType || null, // "old" | "paused" | "new"
+    reactionType: input.reactionType || null,
     pauseDurationMs: input.pauseDurationMs ?? null,
     exerciseId: input.exerciseId || null,
     exerciseResult: input.exerciseResult || null,
     missionId: input.missionId || null,
     missionDone: !!input.missionDone,
+    isWin: !!input.isWin,
     notes: input.notes || "",
     createdAt: new Date().toISOString()
   };
@@ -130,8 +131,8 @@ function startOfDay(d = new Date()) {
 
 function startOfWeek(d = new Date()) {
   const x = startOfDay(d);
-  const day = x.getDay(); // 0=Sun..6=Sat
-  const diff = (day + 1) % 7; // شنبه = 0
+  const day = x.getDay();
+  const diff = (day + 1) % 7;
   x.setDate(x.getDate() - diff);
   return x;
 }
@@ -189,7 +190,7 @@ export function topByFrequency(entries, key, limit = 3) {
 }
 
 /* =========================================================
- * ۶. streak — روزهای پیوسته با فعالیت
+ * ۶. streak
  * ========================================================= */
 
 export function currentStreak(entries, today = new Date()) {
@@ -237,7 +238,7 @@ export function summarizeBySchema(entries, schemaId) {
 }
 
 /* =========================================================
- * ۸. مقایسه هفته جاری با هفته قبل
+ * ۸. مقایسه هفتگی
  * ========================================================= */
 
 export function weeklyComparison(entries) {
@@ -273,7 +274,7 @@ export function weeklyComparison(entries) {
 }
 
 /* =========================================================
- * ۹. موتور بینش — جملات واقعی بر اساس داده کاربر
+ * ۹. اعداد فارسی
  * ========================================================= */
 
 const FA_DIGITS = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
@@ -288,6 +289,10 @@ export function registerIdLabels(map) {
 function humanizeId(id) {
   return _idLabelCache[id] || id;
 }
+
+/* =========================================================
+ * ۱۰. موتور بینش
+ * ========================================================= */
 
 export function generateInsights(entries, { schemaId = null } = {}) {
   const scoped = schemaId ? entries.filter((e) => e.schemaId === schemaId) : entries;
@@ -380,7 +385,150 @@ export function generateInsights(entries, { schemaId = null } = {}) {
 }
 
 /* =========================================================
- * ۱۰. خلاصه کامل برای صفحه پیشرفت
+ * ۱۱. لحظه‌های برد (WINS)
+ * ========================================================= */
+
+/**
+ * یک لحظه برد یعنی:
+ * - کاربر مکث کرد
+ * - یا پاسخ جدید را امتحان کرد
+ * - یا مأموریت را انجام داد
+ */
+export async function getWins(filter = {}) {
+  const entries = await getEntries(filter);
+  return entries
+    .filter((e) => {
+      if (e.reactionType === "paused") return true;
+      if (e.reactionType === "new") return true;
+      if (e.missionDone) return true;
+      if (e.isWin) return true;
+      return false;
+    })
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+export function describeWin(entry) {
+  if (entry.reactionType === "new") {
+    return "پاسخ جدید را امتحان کردی.";
+  }
+  if (entry.reactionType === "paused") {
+    return "قبل از واکنش، مکث کردی.";
+  }
+  if (entry.missionDone) {
+    return "مأموریت را انجام دادی.";
+  }
+  return "یک قدم کوچک برداشتی.";
+}
+
+/* =========================================================
+ * ۱۲. چک‌این روزانه
+ * ========================================================= */
+
+/**
+ * CheckIn {
+ *   id: string,
+ *   mood: "good" | "meh" | "hard",
+ *   schemaId: string|null,
+ *   note: string,
+ *   createdAt: ISO
+ * }
+ */
+
+let _checkinCache = null;
+
+async function loadCheckIns() {
+  if (_checkinCache) return _checkinCache;
+  const raw = await storage().get(CHECKIN_KEY);
+  if (!raw) {
+    _checkinCache = [];
+    return _checkinCache;
+  }
+  try {
+    _checkinCache = JSON.parse(raw);
+  } catch {
+    _checkinCache = [];
+  }
+  return _checkinCache;
+}
+
+async function saveCheckIns() {
+  await storage().set(CHECKIN_KEY, JSON.stringify(_checkinCache || []));
+}
+
+export async function addCheckIn(input) {
+  const list = await loadCheckIns();
+  const entry = {
+    id: uid(),
+    mood: input.mood || "meh",
+    schemaId: input.schemaId || null,
+    note: input.note || "",
+    createdAt: new Date().toISOString()
+  };
+  list.push(entry);
+  await saveCheckIns();
+  return entry;
+}
+
+export async function getCheckIns(filter = {}) {
+  const list = await loadCheckIns();
+  return list.filter((c) => {
+    if (filter.since && new Date(c.createdAt) < new Date(filter.since)) return false;
+    return true;
+  });
+}
+
+export async function hasCheckedInToday() {
+  const list = await loadCheckIns();
+  const today = dateKey(new Date());
+  return list.some((c) => dateKey(new Date(c.createdAt)) === today);
+}
+
+export async function getTodayCheckIn() {
+  const list = await loadCheckIns();
+  const today = dateKey(new Date());
+  return list.find((c) => dateKey(new Date(c.createdAt)) === today) || null;
+}
+
+/* =========================================================
+ * ۱۳. داده تقویم
+ * ========================================================= */
+
+/**
+ * برای هر روز از N روز اخیر:
+ * - وضعیت: "good" | "meh" | "hard" | "none"
+ * - تعداد فعال شدن الگو
+ */
+export async function getCalendarData(days = 30) {
+  const entries = await getEntries();
+  const checkins = await getCheckIns();
+
+  const today = startOfDay();
+  const result = [];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = dateKey(d);
+
+    const dayEntries = entries.filter((e) => dateKey(new Date(e.createdAt)) === key);
+    const dayCheckin = checkins.find((c) => dateKey(new Date(c.createdAt)) === key);
+
+    result.push({
+      date: key,
+      dayNumber: d.getDate(),
+      activations: dayEntries.length,
+      mood: dayCheckin?.mood || "none",
+      hasWin: dayEntries.some(
+        (e) => e.reactionType === "paused" || e.reactionType === "new" || e.missionDone
+      )
+    });
+  }
+
+  return result;
+}
+
+/* =========================================================
+ * ۱۴. خلاصه کامل پیشرفت
  * ========================================================= */
 
 export async function buildProgressSummary(schemaId = null) {
@@ -392,6 +540,8 @@ export async function buildProgressSummary(schemaId = null) {
   const insights = generateInsights(entries, { schemaId });
   const weekly = weeklyComparison(entries);
 
+  const wins = await getWins(schemaId ? { schemaId } : {});
+
   return {
     total: entries.length,
     reactions,
@@ -399,18 +549,26 @@ export async function buildProgressSummary(schemaId = null) {
     activity,
     insights,
     weekly,
+    wins: wins.slice(0, 20),
+    winsCount: wins.length,
     bySchema: schemaId ? summarizeBySchema(entries, schemaId) : null
   };
 }
 
 /* =========================================================
- * ۱۱. Export / Import
+ * ۱۵. Export / Import
  * ========================================================= */
 
 export async function exportJSON() {
   const entries = await load();
+  const checkins = await loadCheckIns();
   return JSON.stringify(
-    { version: 2, exportedAt: new Date().toISOString(), entries },
+    {
+      version: 3,
+      exportedAt: new Date().toISOString(),
+      entries,
+      checkins
+    },
     null,
     2
   );
@@ -422,6 +580,10 @@ export async function importJSON(json) {
     if (!parsed || !Array.isArray(parsed.entries)) throw new Error("bad format");
     _cache = parsed.entries;
     await save();
+    if (Array.isArray(parsed.checkins)) {
+      _checkinCache = parsed.checkins;
+      await saveCheckIns();
+    }
     return { ok: true, count: parsed.entries.length };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -429,7 +591,7 @@ export async function importJSON(json) {
 }
 
 /* =========================================================
- * ۱۲. ثبت یک چرخه کامل
+ * ۱۶. ثبت چرخه
  * ========================================================= */
 
 export async function recordCycle(input) {
@@ -439,10 +601,8 @@ export async function recordCycle(input) {
 }
 
 /* =========================================================
- * ۱۳. ذخیره پروفایل YSQ
+ * ۱۷. ذخیره پروفایل YSQ
  * ========================================================= */
-
-const PROFILE_KEY = "ysq_profile_v2";
 
 export async function saveProfile(analysis) {
   await storage().set(PROFILE_KEY, JSON.stringify(analysis));
