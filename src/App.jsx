@@ -1,6 +1,5 @@
 // App.jsx
-// نسخه 4.0 — کامل با موقعیت‌ها و روابط
-// بدون AI — کاملاً Rule-Based
+// نسخه 5.0 — با ریشه‌های کودکی
 
 import React, { useState, useEffect, useMemo } from "react";
 
@@ -59,6 +58,8 @@ import {
   findAttractionsForSchema,
   getResponseGuide
 } from "./RELATIONSHIPS";
+
+import { getOrigin } from "./ORIGINS";
 
 /* =========================================================
  * ۰. ثبت برچسب‌ها
@@ -170,7 +171,123 @@ function Chip({ children, active, onClick, color = "#111" }) {
 }
 
 /* =========================================================
- * ۲. چک‌این روزانه (فیکس‌شده)
+ * ۲. صفحه ریشه‌ی الگو
+ * ========================================================= */
+
+function OriginView({ schemaId, onBack, onSOS }) {
+  const schema = SCHEMAS.find((s) => s.id === schemaId);
+  const origin = getOrigin(schemaId);
+
+  if (!origin) {
+    return (
+      <Shell title="ریشه" onBack={onBack} showSOS onSOS={onSOS}>
+        <Card><p>اطلاعاتی برای این الگو موجود نیست.</p></Card>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell title="ریشه‌ی این الگو" onBack={onBack} showSOS onSOS={onSOS}>
+      <Card style={{ background: "#111", color: "#fff" }}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
+          الگو
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>
+          {schema?.name_fa}
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 12, background: "#eef4ff" }}>
+        <div style={{ fontSize: 13, lineHeight: 1.9, color: "#1e40af" }}>
+          این توضیح، برای سرزنش کسی نیست.
+          <br />
+          فقط می‌خواهیم ببینیم این الگو <strong>از کجا</strong> آمده —
+          چون فهمیدن ریشه، اولین قدم شکستنش است.
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+          🧸 در کودکی چه اتفاقی افتاد؟
+        </div>
+        {origin.childhood.map((c, i) => (
+          <div
+            key={i}
+            style={{
+              fontSize: 14,
+              lineHeight: 1.9,
+              color: "#555",
+              marginBottom: 10,
+              paddingRight: 12,
+              borderRight: "3px solid #eee"
+            }}
+          >
+            {c}
+          </div>
+        ))}
+      </Card>
+
+      <Card style={{ marginTop: 12, background: "#fff8e1" }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#e65100" }}>
+          💡 کودکی که بودی، این را یاد گرفت
+        </div>
+        <div style={{ fontSize: 15, lineHeight: 1.9, color: "#e65100", fontStyle: "italic" }}>
+          {origin.whatChildLearned}
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+          🔊 این صداها برایت آشناست؟
+        </div>
+        {origin.innerVoice.map((v, i) => (
+          <div
+            key={i}
+            style={{
+              fontSize: 14,
+              lineHeight: 1.9,
+              color: "#555",
+              marginBottom: 8,
+              padding: "8px 12px",
+              background: "#f6f6f6",
+              borderRadius: 8
+            }}
+          >
+            «{v}»
+          </div>
+        ))}
+      </Card>
+
+      <Card style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+          🕊️ کودکی که بودی، این‌ها را لازم داشت
+        </div>
+        {origin.whatWasMissing.map((w, i) => (
+          <div
+            key={i}
+            style={{
+              fontSize: 14,
+              lineHeight: 1.9,
+              color: "#555",
+              marginBottom: 8
+            }}
+          >
+            • {w}
+          </div>
+        ))}
+      </Card>
+
+      <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
+        <div style={{ fontSize: 14, lineHeight: 2 }}>
+          {origin.gentleReminder}
+        </div>
+      </Card>
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۳. چک‌این روزانه
  * ========================================================= */
 
 function CheckInView({ analysis, onDone, onSkip }) {
@@ -181,7 +298,6 @@ function CheckInView({ analysis, onDone, onSkip }) {
 
   const prompt = getTodayPrompt();
 
-  // فقط طرحواره‌های خود کاربر — با توضیح
   const activeSchemas = useMemo(() => {
     if (!analysis?.all) return SCHEMAS.slice(0, 5);
     const list = [];
@@ -312,7 +428,7 @@ function CheckInView({ analysis, onDone, onSkip }) {
 }
 
 /* =========================================================
- * ۳. حالت SOS
+ * ۴. حالت SOS
  * ========================================================= */
 
 function SOSView({ onBack, onBetter }) {
@@ -332,10 +448,7 @@ function SOSView({ onBack, onBetter }) {
     const id = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
-          setBreathIdx((prev) => {
-            const next = (prev + 1) % BREATH_PHASES.length;
-            return next;
-          });
+          setBreathIdx((prev) => (prev + 1) % BREATH_PHASES.length);
           return 1;
         }
         return c - 1;
@@ -462,7 +575,7 @@ function SOSView({ onBack, onBetter }) {
 }
 
 /* =========================================================
- * ۴. صفحه خوش‌آمد
+ * ۵. صفحه خوش‌آمد
  * ========================================================= */
 
 function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSituations, onRelationships }) {
@@ -488,7 +601,6 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSi
         </Card>
       )}
 
-      {/* دکمه‌های اصلی */}
       <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
         {hasProfile ? (
           <Btn onClick={onSkipToProfile}>پروفایل من</Btn>
@@ -516,7 +628,7 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSi
 }
 
 /* =========================================================
- * ۵. صفحه تست YSQ
+ * ۶. صفحه تست YSQ
  * ========================================================= */
 
 function YSQView({ onDone, onBack }) {
@@ -601,10 +713,10 @@ function YSQView({ onDone, onBack }) {
 }
 
 /* =========================================================
- * ۶. صفحه پروفایل
+ * ۷. صفحه پروفایل — با دکمه «🧸 ریشه»
  * ========================================================= */
 
-function ProfileView({ analysis, onPickSchema, onRetake, onBack, onWins, onCalendar, onSOS, onSituations, onRelationships }) {
+function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, onWins, onCalendar, onSOS, onSituations, onRelationships }) {
   if (!analysis) {
     return (
       <Shell title="پروفایل" onBack={onBack}>
@@ -654,50 +766,79 @@ function ProfileView({ analysis, onPickSchema, onRetake, onBack, onWins, onCalen
 
       <h3 style={{ margin: "22px 0 10px", fontSize: 15 }}>الگوهای فعال</h3>
       {[...high, ...medium].map((r) => (
-        <button
-          key={r.schemaId}
-          onClick={() => onPickSchema(r.schemaId)}
-          style={styles.schemaBtn}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontWeight: 600 }}>{r.name}</span>
-            <span style={{ color: r.priority.color, fontWeight: 700, fontSize: 14 }}>
-              {r.priority.emoji} {toFa(r.percentage)}%
-            </span>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <ProgressBar value={r.percentage} color={r.priority.color} />
-          </div>
-        </button>
+        <Card key={r.schemaId} style={{ marginBottom: 8, padding: 14 }}>
+          <button
+            onClick={() => onPickSchema(r.schemaId)}
+            style={{
+              display: "block",
+              width: "100%",
+              textAlign: "right",
+              padding: 0,
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontFamily: "inherit"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 600, fontSize: 15 }}>{r.name}</span>
+              <span style={{ color: r.priority.color, fontWeight: 700, fontSize: 14 }}>
+                {r.priority.emoji} {toFa(r.percentage)}%
+              </span>
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <ProgressBar value={r.percentage} color={r.priority.color} />
+            </div>
+          </button>
+
+          {/* دکمه ریشه */}
+          <button
+            onClick={() => onPickOrigin(r.schemaId)}
+            style={{
+              marginTop: 12,
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #e5e5e5",
+              background: "#fafafa",
+              cursor: "pointer",
+              fontSize: 13,
+              fontFamily: "inherit",
+              color: "#555",
+              width: "100%",
+              textAlign: "right"
+            }}
+          >
+            🧸 این الگو از کجا آمده؟
+          </button>
+        </Card>
       ))}
 
       {low.length > 0 && (
         <>
           <h3 style={{ margin: "22px 0 10px", fontSize: 15, color: "#888" }}>سایر الگوها</h3>
           {low.map((r) => (
-            <button
-              key={r.schemaId}
-              onClick={() => onPickSchema(r.schemaId)}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "right",
-                padding: 12,
-                marginBottom: 6,
-                borderRadius: 10,
-                border: "1px solid #f0f0f0",
-                background: "#fafafa",
-                cursor: "pointer",
-                fontSize: 14,
-                color: "#666",
-                fontFamily: "inherit"
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>{r.name}</span>
-                <span>{toFa(r.percentage)}%</span>
-              </div>
-            </button>
+            <Card key={r.schemaId} style={{ marginBottom: 6, padding: 12, background: "#fafafa" }}>
+              <button
+                onClick={() => onPickSchema(r.schemaId)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "right",
+                  padding: 0,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  color: "#666",
+                  fontFamily: "inherit"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>{r.name}</span>
+                  <span>{toFa(r.percentage)}%</span>
+                </div>
+              </button>
+            </Card>
           ))}
         </>
       )}
@@ -715,7 +856,7 @@ function ProfileView({ analysis, onPickSchema, onRetake, onBack, onWins, onCalen
 }
 
 /* =========================================================
- * ۷. صفحه چرخه
+ * ۸. صفحه چرخه
  * ========================================================= */
 
 function CycleView({ schemaId, onDone, onBack }) {
@@ -807,10 +948,10 @@ function CycleView({ schemaId, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۸. خلاصه چرخه
+ * ۹. خلاصه چرخه
  * ========================================================= */
 
-function CycleSummaryView({ schemaId, selection, onContinue, onBack }) {
+function CycleSummaryView({ schemaId, selection, onContinue, onViewOrigin, onBack }) {
   const schema = SCHEMAS.find((s) => s.id === schemaId);
   const find = (list, id) => (list || []).find((x) => x.id === id);
 
@@ -853,15 +994,18 @@ function CycleSummaryView({ schemaId, selection, onContinue, onBack }) {
         </Card>
       )}
 
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
         <Btn onClick={onContinue}>بعدی — بیایید این چرخه را بشکنیم</Btn>
+        <Btn variant="ghost" onClick={onViewOrigin}>
+          🧸 این الگو از کجا آمده؟
+        </Btn>
       </div>
     </Shell>
   );
 }
 
 /* =========================================================
- * ۹. صفحه تمرین
+ * ۱۰. صفحه تمرین
  * ========================================================= */
 
 function ExerciseView({ schemaId, selection, onDone, onBack }) {
@@ -892,7 +1036,7 @@ function ExerciseView({ schemaId, selection, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۰. صفحه مأموریت
+ * ۱۱. صفحه مأموریت
  * ========================================================= */
 
 function MissionView({ schemaId, onDone, onBack }) {
@@ -972,7 +1116,7 @@ function MissionView({ schemaId, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۱. ثبت نتیجه
+ * ۱۲. ثبت نتیجه
  * ========================================================= */
 
 function LogResultView({ schemaId, selection, onDone, onBack }) {
@@ -1084,7 +1228,7 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۲. صفحه لحظه‌های من
+ * ۱۳. صفحه لحظه‌های من
  * ========================================================= */
 
 function WinsView({ onBack, onSOS }) {
@@ -1168,7 +1312,7 @@ function WinsView({ onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۳. صفحه تقویم
+ * ۱۴. صفحه تقویم
  * ========================================================= */
 
 function CalendarView({ onBack, onSOS }) {
@@ -1276,7 +1420,7 @@ function CalendarView({ onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۴. صفحه موقعیت‌ها (جدید)
+ * ۱۵. صفحه موقعیت‌ها
  * ========================================================= */
 
 function SituationsView({ onBack, onPickSituation, onSOS }) {
@@ -1292,7 +1436,6 @@ function SituationsView({ onBack, onPickSituation, onSOS }) {
         </p>
       </Card>
 
-      {/* دسته‌بندی */}
       <div
         style={{
           display: "flex",
@@ -1352,7 +1495,7 @@ function SituationsView({ onBack, onPickSituation, onSOS }) {
 }
 
 /* =========================================================
- * ۱۵. جزئیات موقعیت (جدید)
+ * ۱۶. جزئیات موقعیت
  * ========================================================= */
 
 function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
@@ -1381,7 +1524,6 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
         </div>
       </Card>
 
-      {/* مثال‌ها */}
       <Card style={{ marginTop: 12 }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
           آیا این جمله‌ها برای تو آشناست؟
@@ -1402,7 +1544,6 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
         ))}
       </Card>
 
-      {/* چرخه */}
       <Card style={{ marginTop: 12 }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
           چرخه‌ی پشت این موقعیت
@@ -1425,7 +1566,6 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
         ))}
       </Card>
 
-      {/* طرحواره‌های مرتبط */}
       <Card style={{ marginTop: 12 }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
           این موقعیت به این الگوها مربوط است
@@ -1455,7 +1595,6 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
         </div>
       </Card>
 
-      {/* چه کار کنی */}
       <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
           چه کار کنی؟
@@ -1482,7 +1621,7 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
 }
 
 /* =========================================================
- * ۱۶. صفحه روابط (جدید)
+ * ۱۷. صفحه روابط
  * ========================================================= */
 
 function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuide, onSOS }) {
@@ -1491,7 +1630,6 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
     return analysis.all.filter((r) => r.percentage >= 40);
   }, [analysis]);
 
-  // مرتب‌سازی الگوها بر اساس ارتباط با کاربر
   const relevantPatterns = useMemo(() => {
     if (userSchemas.length === 0) return ATTRACTION_PATTERNS;
     const userSchemaIds = userSchemas.map((s) => s.schemaId);
@@ -1512,7 +1650,6 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
         </p>
       </Card>
 
-      {/* راهنمای برخورد */}
       <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
         <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
           راهنمای برخورد با هر طرحواره
@@ -1543,7 +1680,6 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
         </div>
       </Card>
 
-      {/* الگوهای جذب */}
       <h3 style={{ margin: "22px 0 10px", fontSize: 15 }}>
         الگوهای جذب
       </h3>
@@ -1581,7 +1717,7 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
 }
 
 /* =========================================================
- * ۱۷. جزئیات الگوی جذب (جدید)
+ * ۱۸. جزئیات الگوی جذب
  * ========================================================= */
 
 function RelationshipDetailView({ patternId, onBack, onSOS }) {
@@ -1660,7 +1796,7 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۸. راهنمای برخورد با یک طرحواره (جدید)
+ * ۱۹. راهنمای برخورد با یک طرحواره
  * ========================================================= */
 
 function ResponseGuideView({ schemaId, onBack, onSOS }) {
@@ -1720,7 +1856,7 @@ function ResponseGuideView({ schemaId, onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۹. صفحه شکستن چرخه (جدید)
+ * ۲۰. صفحه شکستن چرخه
  * ========================================================= */
 
 function BreakCycleView({ onBack, onSOS }) {
@@ -1775,7 +1911,7 @@ function BreakCycleView({ onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۲۰. صفحه پیشرفت
+ * ۲۱. صفحه پیشرفت
  * ========================================================= */
 
 function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) {
@@ -1941,7 +2077,7 @@ function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) 
 }
 
 /* =========================================================
- * ۲۱. جریان سریع
+ * ۲۲. جریان سریع
  * ========================================================= */
 
 function QuickCheckView({ profiles, onDone, onBack }) {
@@ -2050,7 +2186,7 @@ function QuickCheckView({ profiles, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۲۲. اپ اصلی
+ * ۲۳. اپ اصلی
  * ========================================================= */
 
 export default function App() {
@@ -2060,6 +2196,8 @@ export default function App() {
   const [activeSituationId, setActiveSituationId] = useState(null);
   const [activePatternId, setActivePatternId] = useState(null);
   const [activeGuideSchemaId, setActiveGuideSchemaId] = useState(null);
+  const [originSchemaId, setOriginSchemaId] = useState(null);
+  const [returnFromOrigin, setReturnFromOrigin] = useState("profile");
   const [selection, setSelection] = useState(null);
   const [exerciseRecord, setExerciseRecord] = useState(null);
   const [missionRecord, setMissionRecord] = useState(null);
@@ -2089,6 +2227,12 @@ export default function App() {
   const openSOS = () => {
     setReturnTo(view);
     go("sos");
+  };
+
+  const openOrigin = (schemaId, from) => {
+    setOriginSchemaId(schemaId);
+    setReturnFromOrigin(from);
+    go("origin");
   };
 
   const todayPhrase = useMemo(() => {
@@ -2173,6 +2317,17 @@ export default function App() {
           setActiveSchemaId(id);
           go("cycle");
         }}
+        onPickOrigin={(id) => openOrigin(id, "profile")}
+      />
+    );
+  }
+
+  if (view === "origin" && originSchemaId) {
+    return (
+      <OriginView
+        schemaId={originSchemaId}
+        onBack={() => go(returnFromOrigin)}
+        onSOS={openSOS}
       />
     );
   }
@@ -2197,6 +2352,7 @@ export default function App() {
         selection={selection}
         onBack={() => go("cycle")}
         onContinue={() => go("exercise")}
+        onViewOrigin={() => openOrigin(activeSchemaId, "cycle_summary")}
       />
     );
   }
@@ -2372,7 +2528,7 @@ export default function App() {
 }
 
 /* =========================================================
- * ۲۳. استایل‌ها
+ * ۲۴. استایل‌ها
  * ========================================================= */
 
 const styles = {
