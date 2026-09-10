@@ -1,5 +1,5 @@
 // App.jsx
-// نسخه 6.0 — با روابط ساده‌شده و ریشه‌های کودکی
+// نسخه 7.0 — کامل با ریشه‌های کودکی و راهنمای خوددرمانی
 // بدون AI — کاملاً Rule-Based
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -1621,7 +1621,7 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
 }
 
 /* =========================================================
- * ۱۷. صفحه روابط (آپدیت‌شده)
+ * ۱۷. صفحه روابط
  * ========================================================= */
 
 function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuide, onSOS }) {
@@ -1650,7 +1650,6 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
         </p>
       </Card>
 
-      {/* راهنمای برخورد */}
       <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
           💬 چطور با طرف مقابل برخورد کنم؟
@@ -1689,7 +1688,6 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
         </div>
       </Card>
 
-      {/* الگوهای جذب */}
       <h3 style={{ margin: "22px 0 8px", fontSize: 15 }}>
         🔁 چرا بعضی روابط تکرار می‌شوند؟
       </h3>
@@ -1730,7 +1728,7 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
 }
 
 /* =========================================================
- * ۱۸. جزئیات الگوی جذب (آپدیت‌شده)
+ * ۱۸. جزئیات الگوی جذب
  * ========================================================= */
 
 function RelationshipDetailView({ patternId, onBack, onSOS }) {
@@ -1757,7 +1755,6 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
         <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
           {schemas.map((s) => s.name_fa).join(" + ")}
         </div>
-
         <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
           {pattern.boxDescription}
         </div>
@@ -1765,12 +1762,20 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
 
       {pattern.childhood && (
         <Card style={{ marginTop: 12, background: "#eef4ff" }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#1e40af" }}>
-            🧸 چرا این الگو شکل می‌گیرد؟
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#1e40af" }}>
+            🧸 احتمالاً در کودکی این‌ها را تجربه کرده
           </div>
-          <div style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af" }}>
-            {pattern.childhood}
-          </div>
+          {Array.isArray(pattern.childhood) ? (
+            pattern.childhood.map((c, i) => (
+              <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af", marginBottom: 8 }}>
+                • {c}
+              </div>
+            ))
+          ) : (
+            <div style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af" }}>
+              {pattern.childhood}
+            </div>
+          )}
         </Card>
       )}
 
@@ -1826,12 +1831,25 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
           </div>
         ))}
       </Card>
+
+      {pattern.whatToDoNow && (
+        <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+            🕊️ حالا باید چکار کرد
+          </div>
+          {pattern.whatToDoNow.map((w, i) => (
+            <div key={i} style={{ fontSize: 14, lineHeight: 1.9, marginBottom: 8, opacity: 0.95 }}>
+              • {w}
+            </div>
+          ))}
+        </Card>
+      )}
     </Shell>
   );
 }
 
 /* =========================================================
- * ۱۹. راهنمای برخورد (آپدیت‌شده)
+ * ۱۹. راهنمای برخورد
  * ========================================================= */
 
 function ResponseGuideView({ schemaId, onBack, onSOS }) {
@@ -1871,6 +1889,19 @@ function ResponseGuideView({ schemaId, onBack, onSOS }) {
         </Card>
       )}
 
+      {guide.childhood && (
+        <Card style={{ marginTop: 12, background: "#eef4ff" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#1e40af" }}>
+            🧸 احتمالاً در کودکی این‌ها را تجربه کرده
+          </div>
+          {guide.childhood.map((c, i) => (
+            <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af", marginBottom: 8 }}>
+              • {c}
+            </div>
+          ))}
+        </Card>
+      )}
+
       <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
           🌟 قاعده طلایی
@@ -1901,6 +1932,19 @@ function ResponseGuideView({ schemaId, onBack, onSOS }) {
           </div>
         ))}
       </Card>
+
+      {guide.whatToDoNow && (
+        <Card style={{ marginTop: 12, background: "#fff8e1" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#e65100" }}>
+            🕊️ حالا باید چکار کرد
+          </div>
+          {guide.whatToDoNow.map((w, i) => (
+            <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#e65100", marginBottom: 8 }}>
+              • {w}
+            </div>
+          ))}
+        </Card>
+      )}
     </Shell>
   );
 }
