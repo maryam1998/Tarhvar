@@ -1,5 +1,6 @@
 // App.jsx
-// نسخه 5.0 — با ریشه‌های کودکی
+// نسخه 6.0 — با روابط ساده‌شده و ریشه‌های کودکی
+// بدون AI — کاملاً Rule-Based
 
 import React, { useState, useEffect, useMemo } from "react";
 
@@ -713,7 +714,7 @@ function YSQView({ onDone, onBack }) {
 }
 
 /* =========================================================
- * ۷. صفحه پروفایل — با دکمه «🧸 ریشه»
+ * ۷. صفحه پروفایل
  * ========================================================= */
 
 function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, onWins, onCalendar, onSOS, onSituations, onRelationships }) {
@@ -791,7 +792,6 @@ function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, o
             </div>
           </button>
 
-          {/* دکمه ریشه */}
           <button
             onClick={() => onPickOrigin(r.schemaId)}
             style={{
@@ -1621,7 +1621,7 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
 }
 
 /* =========================================================
- * ۱۷. صفحه روابط
+ * ۱۷. صفحه روابط (آپدیت‌شده)
  * ========================================================= */
 
 function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuide, onSOS }) {
@@ -1650,41 +1650,51 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
         </p>
       </Card>
 
+      {/* راهنمای برخورد */}
       <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-          راهنمای برخورد با هر طرحواره
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
+          💬 چطور با طرف مقابل برخورد کنم؟
         </div>
-        <div style={{ fontSize: 13, lineHeight: 1.9, opacity: 0.9 }}>
-          اگر طرف مقابلت این الگو را دارد، چطور باید برخورد کنی؟
+        <div style={{ fontSize: 13, lineHeight: 1.9, opacity: 0.85, marginBottom: 4 }}>
+          اگر طرف مقابلت این الگو را دارد،
+          روی اسمش بزن تا ببینی چطور رفتار کنی.
         </div>
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-          {SCHEMAS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => onPickResponseGuide(s.id)}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,.2)",
-                background: "transparent",
-                color: "#fff",
-                cursor: "pointer",
-                textAlign: "right",
-                fontFamily: "inherit",
-                fontSize: 14
-              }}
-            >
-              {s.name_fa} →
-            </button>
-          ))}
+          {SCHEMAS.map((s) => {
+            const guide = HOW_TO_RESPOND[s.id];
+            return (
+              <button
+                key={s.id}
+                onClick={() => onPickResponseGuide(s.id)}
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,.2)",
+                  background: "transparent",
+                  color: "#fff",
+                  cursor: "pointer",
+                  textAlign: "right",
+                  fontFamily: "inherit"
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>
+                  {guide?.plainName || s.name_fa}
+                </div>
+                <div style={{ fontSize: 11, opacity: 0.6 }}>
+                  {s.name_fa}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </Card>
 
-      <h3 style={{ margin: "22px 0 10px", fontSize: 15 }}>
-        الگوهای جذب
+      {/* الگوهای جذب */}
+      <h3 style={{ margin: "22px 0 8px", fontSize: 15 }}>
+        🔁 چرا بعضی روابط تکرار می‌شوند؟
       </h3>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: "#888", lineHeight: 1.8 }}>
-        چرا بعضی روابط همیشه شبیه هم‌اند؟ اینجا ترکیب‌های رایج را می‌بینی.
+        این‌ها ترکیب‌های رایج‌اند. روی هر کدام بزن تا بفهمی چرا همیشه شبیه هم‌اند.
       </p>
 
       {relevantPatterns.map((p) => (
@@ -1695,8 +1705,8 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
             display: "block",
             width: "100%",
             textAlign: "right",
-            padding: 14,
-            marginBottom: 8,
+            padding: 16,
+            marginBottom: 10,
             borderRadius: 12,
             border: "1px solid #eee",
             background: "#fff",
@@ -1704,11 +1714,14 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
             fontFamily: "inherit"
           }}
         >
-          <div style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
             {p.shortName}
           </div>
-          <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.7 }}>
-            {p.title}
+          <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.6, marginBottom: 8 }}>
+            {p.boxTitle || p.title}
+          </div>
+          <div style={{ fontSize: 13, color: "#666", lineHeight: 1.7 }}>
+            {p.boxDescription}
           </div>
         </button>
       ))}
@@ -1717,7 +1730,7 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
 }
 
 /* =========================================================
- * ۱۸. جزئیات الگوی جذب
+ * ۱۸. جزئیات الگوی جذب (آپدیت‌شده)
  * ========================================================= */
 
 function RelationshipDetailView({ patternId, onBack, onSOS }) {
@@ -1738,21 +1751,43 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
   return (
     <Shell title={pattern.shortName} onBack={onBack} showSOS onSOS={onSOS}>
       <Card>
-        <h2 style={{ margin: "0 0 6px", fontSize: 18, lineHeight: 1.7 }}>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18, lineHeight: 1.7 }}>
           {pattern.title}
         </h2>
-        <div style={{ fontSize: 13, color: "#888", marginBottom: 14 }}>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
           {schemas.map((s) => s.name_fa).join(" + ")}
         </div>
 
         <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
-          {pattern.dynamic}
+          {pattern.boxDescription}
         </div>
       </Card>
 
+      {pattern.childhood && (
+        <Card style={{ marginTop: 12, background: "#eef4ff" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#1e40af" }}>
+            🧸 چرا این الگو شکل می‌گیرد؟
+          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af" }}>
+            {pattern.childhood}
+          </div>
+        </Card>
+      )}
+
+      {pattern.realLife && (
+        <Card style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
+            📖 در زندگی واقعی چطور است؟
+          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
+            {pattern.realLife}
+          </div>
+        </Card>
+      )}
+
       <Card style={{ marginTop: 12 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-          معمولاً چطور پیش می‌رود
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
+          🔁 معمولاً چطور پیش می‌رود؟
         </div>
         <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
           {pattern.typical}
@@ -1760,33 +1795,33 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
       </Card>
 
       <Card style={{ marginTop: 12, background: "#fef3f2" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#c0392b" }}>
-          چالش‌ها
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#c0392b" }}>
+          ⚠️ چالش‌های این رابطه
         </div>
         {pattern.challenges.map((c, i) => (
-          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#555", marginBottom: 4 }}>
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#555", marginBottom: 6 }}>
             • {c}
           </div>
         ))}
       </Card>
 
       <Card style={{ marginTop: 12, background: "#eef7ee" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#1b5e20" }}>
-          چه چیزی کمک می‌کند
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#1b5e20" }}>
+          ✅ چه چیزی کمک می‌کند
         </div>
         {pattern.whatHelps.map((h, i) => (
-          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1b5e20", marginBottom: 4 }}>
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1b5e20", marginBottom: 6 }}>
             ✓ {h}
           </div>
         ))}
       </Card>
 
       <Card style={{ marginTop: 12, background: "#fff8e1" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#e65100" }}>
-          چه چیزی اوضاع را بدتر می‌کند
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#e65100" }}>
+          ❌ چه چیزی اوضاع را بدتر می‌کند
         </div>
         {pattern.whatHurts.map((h, i) => (
-          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#e65100", marginBottom: 4 }}>
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#e65100", marginBottom: 6 }}>
             ✕ {h}
           </div>
         ))}
@@ -1796,7 +1831,7 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۹. راهنمای برخورد با یک طرحواره
+ * ۱۹. راهنمای برخورد (آپدیت‌شده)
  * ========================================================= */
 
 function ResponseGuideView({ schemaId, onBack, onSOS }) {
@@ -1812,41 +1847,56 @@ function ResponseGuideView({ schemaId, onBack, onSOS }) {
   }
 
   return (
-    <Shell title={guide.name} onBack={onBack} showSOS onSOS={onSOS}>
-      <Card style={{ background: "#111", color: "#fff" }}>
+    <Shell title={guide.plainName || guide.name} onBack={onBack} showSOS onSOS={onSOS}>
+      <Card>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>
+          {guide.plainName || guide.name}
+        </h2>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
+          {guide.name}
+        </div>
+        <div style={{ fontSize: 14, color: "#555", lineHeight: 1.9 }}>
+          {guide.plainDescription}
+        </div>
+      </Card>
+
+      {guide.example && (
+        <Card style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+            📖 در زندگی واقعی
+          </div>
+          <div style={{ fontSize: 14, color: "#555", lineHeight: 1.9 }}>
+            {guide.example}
+          </div>
+        </Card>
+      )}
+
+      <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
-          قاعده طلایی
+          🌟 قاعده طلایی
         </div>
         <div style={{ fontSize: 16, lineHeight: 1.9, fontWeight: 600 }}>
           {guide.goldenRule}
         </div>
       </Card>
 
-      {schema && (
-        <Card style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 13, color: "#666", lineHeight: 1.8 }}>
-            {schema.short_description}
-          </div>
-        </Card>
-      )}
-
       <Card style={{ marginTop: 12, background: "#eef7ee" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#1b5e20" }}>
-          ✓ این کارها را بکن
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#1b5e20" }}>
+          ✅ این کارها را بکن
         </div>
         {guide.doThis.map((d, i) => (
-          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1b5e20", marginBottom: 6 }}>
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1b5e20", marginBottom: 8 }}>
             • {d}
           </div>
         ))}
       </Card>
 
       <Card style={{ marginTop: 12, background: "#fef3f2" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#c0392b" }}>
-          ✕ این کارها را نکن
+        <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#c0392b" }}>
+          ❌ این کارها را نکن
         </div>
         {guide.dontDoThis.map((d, i) => (
-          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#c0392b", marginBottom: 6 }}>
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#c0392b", marginBottom: 8 }}>
             • {d}
           </div>
         ))}
