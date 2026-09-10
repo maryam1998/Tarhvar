@@ -26,6 +26,15 @@ jobs:
         with:
           node-version: 22
 
+      - name: Check files
+        run: |
+          echo "=== Files in root ==="
+          ls -la
+          echo "=== Files in src ==="
+          ls -la src/
+          echo "=== package.json ==="
+          cat package.json
+
       - name: Install dependencies
         run: npm install
 
