@@ -1,6 +1,6 @@
 // App.jsx
-// نسخه 3.0 — کامل با همه قابلیت‌ها
-// چک‌این روزانه + لحظه‌های برد + SOS + تقویم + جمله‌های مهربان
+// نسخه 4.0 — کامل با موقعیت‌ها و روابط
+// بدون AI — کاملاً Rule-Based
 
 import React, { useState, useEffect, useMemo } from "react";
 
@@ -44,6 +44,21 @@ import {
   getCompassionatePhrases,
   getTodayPrompt
 } from "./EXTRAS";
+
+import {
+  SITUATIONS,
+  SITUATION_CATEGORIES,
+  getSituationsByCategory,
+  getSituation
+} from "./SITUATIONS";
+
+import {
+  ATTRACTION_PATTERNS,
+  HOW_TO_RESPOND,
+  BREAK_CYCLE_GUIDE,
+  findAttractionsForSchema,
+  getResponseGuide
+} from "./RELATIONSHIPS";
 
 /* =========================================================
  * ۰. ثبت برچسب‌ها
@@ -133,18 +148,51 @@ function ProgressBar({ value, max = 100, color = "#111", height = 8 }) {
   );
 }
 
+function Chip({ children, active, onClick, color = "#111" }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "6px 14px",
+        borderRadius: 999,
+        border: active ? `2px solid ${color}` : "1px solid #e5e5e5",
+        background: active ? color : "#fff",
+        color: active ? "#fff" : "#555",
+        fontSize: 13,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        whiteSpace: "nowrap"
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 /* =========================================================
- * ۲. چک‌این روزانه
+ * ۲. چک‌این روزانه (فیکس‌شده)
  * ========================================================= */
 
-function CheckInView({ onDone, onSkip }) {
+function CheckInView({ analysis, onDone, onSkip }) {
   const [phase, setPhase] = useState("mood");
   const [mood, setMood] = useState(null);
   const [schemaId, setSchemaId] = useState(null);
   const [note, setNote] = useState("");
 
   const prompt = getTodayPrompt();
-  const activeSchemas = SCHEMAS.filter((s) => s.id).slice(0, 18);
+
+  // فقط طرحواره‌های خود کاربر — با توضیح
+  const activeSchemas = useMemo(() => {
+    if (!analysis?.all) return SCHEMAS.slice(0, 5);
+    const list = [];
+    for (const r of analysis.all) {
+      if (r.percentage >= 40) {
+        const s = SCHEMAS.find((x) => x.id === r.schemaId);
+        if (s) list.push(s);
+      }
+    }
+    return list.length > 0 ? list : SCHEMAS.slice(0, 5);
+  }, [analysis]);
 
   if (phase === "mood") {
     return (
@@ -184,20 +232,20 @@ function CheckInView({ onDone, onSkip }) {
     return (
       <Shell title="صبح بخیر" onBack={() => setPhase("mood")}>
         <Card>
-          <p style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 600 }}>
+          <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 600 }}>
             کدام الگو امروز فعال‌تر است؟
           </p>
-          <p style={{ margin: "0 0 14px", fontSize: 13, color: "#888" }}>
-            اگر مطمئن نیستی، رد کن — بعداً می‌توانی ثبت کنی.
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "#888" }}>
+            فقط الگوهای خودت نشان داده می‌شوند.
           </p>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 400, overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {activeSchemas.map((s) => (
               <button
                 key={s.id}
                 onClick={() => setSchemaId(s.id)}
                 style={{
-                  padding: "10px 14px",
+                  padding: "12px 14px",
                   borderRadius: 10,
                   border: schemaId === s.id ? "2px solid #111" : "1px solid #e5e5e5",
                   background: schemaId === s.id ? "#111" : "#fff",
@@ -205,10 +253,14 @@ function CheckInView({ onDone, onSkip }) {
                   fontSize: 14,
                   textAlign: "right",
                   cursor: "pointer",
-                  fontFamily: "inherit"
+                  fontFamily: "inherit",
+                  lineHeight: 1.6
                 }}
               >
-                {s.name_fa}
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>{s.name_fa}</div>
+                <div style={{ fontSize: 12, opacity: 0.7, lineHeight: 1.5 }}>
+                  {s.short_description}
+                </div>
               </button>
             ))}
           </div>
@@ -217,7 +269,7 @@ function CheckInView({ onDone, onSkip }) {
         <div style={{ marginTop: 16 }}>
           <Btn onClick={() => setPhase("note")}>بعدی</Btn>
           <div style={{ marginTop: 8 }}>
-            <Btn variant="ghost" onClick={() => setPhase("note")}>
+            <Btn variant="ghost" onClick={() => { setSchemaId(null); setPhase("note"); }}>
               مطمئن نیستم
             </Btn>
           </div>
@@ -265,10 +317,7 @@ function CheckInView({ onDone, onSkip }) {
 
 function SOSView({ onBack, onBetter }) {
   const [phase, setPhase] = useState("breathe");
-  const [seconds, setSeconds] = useState(4);
-  const [cycle, setCycle] = useState(0);
 
-  // چرخه تنفس ۴-۷-۸
   const BREATH_PHASES = [
     { name: "دم", dur: 4 },
     { name: "نگه‌دار", dur: 7 },
@@ -283,16 +332,22 @@ function SOSView({ onBack, onBetter }) {
     const id = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
-          const next = (breathIdx + 1) % BREATH_PHASES.length;
-          setBreathIdx(next);
-          setCycle((cy) => cy + (next === 0 ? 1 : 0));
-          return BREATH_PHASES[next].dur;
+          setBreathIdx((prev) => {
+            const next = (prev + 1) % BREATH_PHASES.length;
+            return next;
+          });
+          return 1;
         }
         return c - 1;
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [phase, breathIdx]);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "breathe") return;
+    setCountdown(BREATH_PHASES[breathIdx].dur);
+  }, [breathIdx, phase]);
 
   const phrases = useMemo(() => {
     const all = [];
@@ -410,7 +465,7 @@ function SOSView({ onBack, onBetter }) {
  * ۴. صفحه خوش‌آمد
  * ========================================================= */
 
-function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS }) {
+function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSituations, onRelationships }) {
   return (
     <Shell title="الگوهای من" showSOS onSOS={onSOS}>
       <Card>
@@ -433,17 +488,20 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS }) {
         </Card>
       )}
 
-      <div style={{ marginTop: 16 }}>
-        <Btn onClick={onStart}>شروع ارزیابی</Btn>
+      {/* دکمه‌های اصلی */}
+      <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+        {hasProfile ? (
+          <Btn onClick={onSkipToProfile}>پروفایل من</Btn>
+        ) : (
+          <Btn onClick={onStart}>شروع ارزیابی</Btn>
+        )}
+        <Btn variant="ghost" onClick={onSituations}>
+          🔍 من الان این حس را دارم
+        </Btn>
+        <Btn variant="ghost" onClick={onRelationships}>
+          💞 چطور با دیگران برخورد کنم
+        </Btn>
       </div>
-
-      {hasProfile && (
-        <div style={{ marginTop: 10 }}>
-          <Btn variant="ghost" onClick={onSkipToProfile}>
-            پروفایل من را نشان بده
-          </Btn>
-        </div>
-      )}
 
       <Card style={{ marginTop: 24, background: "#f6f6f6" }}>
         <div style={{ fontSize: 13, color: "#666", lineHeight: 1.9 }}>
@@ -546,7 +604,7 @@ function YSQView({ onDone, onBack }) {
  * ۶. صفحه پروفایل
  * ========================================================= */
 
-function ProfileView({ analysis, onPickSchema, onRetake, onBack, onWins, onCalendar, onSOS }) {
+function ProfileView({ analysis, onPickSchema, onRetake, onBack, onWins, onCalendar, onSOS, onSituations, onRelationships }) {
   if (!analysis) {
     return (
       <Shell title="پروفایل" onBack={onBack}>
@@ -582,6 +640,15 @@ function ProfileView({ analysis, onPickSchema, onRetake, onBack, onWins, onCalen
         </button>
         <button onClick={onCalendar} style={styles.dashBtn}>
           📅 تقویم
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button onClick={onSituations} style={styles.dashBtn}>
+          🔍 موقعیت‌ها
+        </button>
+        <button onClick={onRelationships} style={styles.dashBtn}>
+          💞 روابط
         </button>
       </div>
 
@@ -825,7 +892,7 @@ function ExerciseView({ schemaId, selection, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۰. صفحه مأموریت — با میکرو-مأموریت
+ * ۱۰. صفحه مأموریت
  * ========================================================= */
 
 function MissionView({ schemaId, onDone, onBack }) {
@@ -1017,7 +1084,7 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۲. صفحه لحظه‌های من (Wins)
+ * ۱۲. صفحه لحظه‌های من
  * ========================================================= */
 
 function WinsView({ onBack, onSOS }) {
@@ -1041,7 +1108,9 @@ function WinsView({ onBack, onSOS }) {
       "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
       "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
     ];
-    return `${toFa(d.getDate())} ${months[d.getMonth()]} — ساعت ${toFa(d.getHours())}:${toFa(String(d.getMinutes()).padStart(2, "0"))}`;
+    const h = d.getHours();
+    const m = String(d.getMinutes()).padStart(2, "0");
+    return `${toFa(d.getDate())} ${months[d.getMonth()]} — ${toFa(h)}:${toFa(m)}`;
   };
 
   if (wins.length === 0) {
@@ -1169,14 +1238,7 @@ function CalendarView({ onBack, onSOS }) {
                 </div>
               )}
               {d.hasWin && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 2,
-                    left: 2,
-                    fontSize: 8
-                  }}
-                >
+                <div style={{ position: "absolute", top: 2, left: 2, fontSize: 8 }}>
                   ⭐
                 </div>
               )}
@@ -1214,7 +1276,506 @@ function CalendarView({ onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۴. صفحه پیشرفت
+ * ۱۴. صفحه موقعیت‌ها (جدید)
+ * ========================================================= */
+
+function SituationsView({ onBack, onPickSituation, onSOS }) {
+  const [category, setCategory] = useState("all");
+
+  const situations = getSituationsByCategory(category);
+
+  return (
+    <Shell title="موقعیت‌های من" onBack={onBack} showSOS onSOS={onSOS}>
+      <Card>
+        <p style={{ margin: 0, fontSize: 14, color: "#666", lineHeight: 1.9 }}>
+          این حسی که الان داری، مربوط به کدام موقعیت است؟
+        </p>
+      </Card>
+
+      {/* دسته‌بندی */}
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          marginTop: 12,
+          marginBottom: 12,
+          overflowX: "auto",
+          paddingBottom: 4
+        }}
+      >
+        {SITUATION_CATEGORIES.map((c) => (
+          <Chip
+            key={c.id}
+            active={category === c.id}
+            onClick={() => setCategory(c.id)}
+          >
+            {c.emoji} {c.label}
+          </Chip>
+        ))}
+      </div>
+
+      {situations.map((s) => (
+        <button
+          key={s.id}
+          onClick={() => onPickSituation(s.id)}
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "right",
+            padding: 14,
+            marginBottom: 8,
+            borderRadius: 12,
+            border: "1px solid #eee",
+            background: "#fff",
+            cursor: "pointer",
+            fontFamily: "inherit"
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.6 }}>
+            {s.title}
+          </div>
+          <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
+            {s.categoryLabel}
+          </div>
+        </button>
+      ))}
+
+      {situations.length === 0 && (
+        <Card>
+          <p style={{ color: "#888", fontSize: 14 }}>
+            موقعیتی در این دسته پیدا نشد.
+          </p>
+        </Card>
+      )}
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۱۵. جزئیات موقعیت (جدید)
+ * ========================================================= */
+
+function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
+  const situation = getSituation(situationId);
+
+  if (!situation) {
+    return (
+      <Shell title="خطا" onBack={onBack} showSOS onSOS={onSOS}>
+        <Card><p>موقعیت پیدا نشد.</p></Card>
+      </Shell>
+    );
+  }
+
+  const relatedSchemas = situation.schemas
+    .map((id) => SCHEMAS.find((s) => s.id === id))
+    .filter(Boolean);
+
+  return (
+    <Shell title="موقعیت" onBack={onBack} showSOS onSOS={onSOS}>
+      <Card>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18, lineHeight: 1.7 }}>
+          {situation.title}
+        </h2>
+        <div style={{ fontSize: 12, color: "#888" }}>
+          {situation.categoryLabel}
+        </div>
+      </Card>
+
+      {/* مثال‌ها */}
+      <Card style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+          آیا این جمله‌ها برای تو آشناست؟
+        </div>
+        {situation.examples.map((ex, i) => (
+          <div
+            key={i}
+            style={{
+              fontSize: 14,
+              lineHeight: 1.9,
+              padding: "8px 0",
+              borderBottom: i < situation.examples.length - 1 ? "1px dashed #eee" : "none",
+              color: "#555"
+            }}
+          >
+            «{ex}»
+          </div>
+        ))}
+      </Card>
+
+      {/* چرخه */}
+      <Card style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+          چرخه‌ی پشت این موقعیت
+        </div>
+        {situation.cycle.map((step, i) => (
+          <div
+            key={i}
+            style={{
+              padding: "10px 12px",
+              background: "#f6f6f6",
+              borderRadius: 8,
+              fontSize: 13,
+              lineHeight: 1.7,
+              marginBottom: 6,
+              color: "#444"
+            }}
+          >
+            {step}
+          </div>
+        ))}
+      </Card>
+
+      {/* طرحواره‌های مرتبط */}
+      <Card style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+          این موقعیت به این الگوها مربوط است
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {relatedSchemas.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onPickSchema(s.id)}
+              style={{
+                padding: "12px 14px",
+                borderRadius: 10,
+                border: "1px solid #e5e5e5",
+                background: "#fff",
+                cursor: "pointer",
+                textAlign: "right",
+                fontFamily: "inherit",
+                fontSize: 14
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>{s.name_fa}</div>
+              <div style={{ fontSize: 12, color: "#888", lineHeight: 1.5 }}>
+                {s.short_description}
+              </div>
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* چه کار کنی */}
+      <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+          چه کار کنی؟
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {situation.whatToDo.map((tip, i) => (
+            <div key={i} style={{ fontSize: 14, lineHeight: 1.8, opacity: 0.95 }}>
+              • {tip}
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div style={{ marginTop: 16 }}>
+        <Btn
+          variant="ghost"
+          onClick={() => onPickSchema(relatedSchemas[0]?.id)}
+        >
+          کار روی {relatedSchemas[0]?.name_fa || "این الگو"}
+        </Btn>
+      </div>
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۱۶. صفحه روابط (جدید)
+ * ========================================================= */
+
+function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuide, onSOS }) {
+  const userSchemas = useMemo(() => {
+    if (!analysis?.all) return [];
+    return analysis.all.filter((r) => r.percentage >= 40);
+  }, [analysis]);
+
+  // مرتب‌سازی الگوها بر اساس ارتباط با کاربر
+  const relevantPatterns = useMemo(() => {
+    if (userSchemas.length === 0) return ATTRACTION_PATTERNS;
+    const userSchemaIds = userSchemas.map((s) => s.schemaId);
+    return ATTRACTION_PATTERNS
+      .filter((p) => p.schemas.some((sid) => userSchemaIds.includes(sid)))
+      .concat(
+        ATTRACTION_PATTERNS.filter(
+          (p) => !p.schemas.some((sid) => userSchemaIds.includes(sid))
+        )
+      );
+  }, [userSchemas]);
+
+  return (
+    <Shell title="روابط من" onBack={onBack} showSOS onSOS={onSOS}>
+      <Card>
+        <p style={{ margin: 0, fontSize: 14, color: "#666", lineHeight: 1.9 }}>
+          چطور با دیگران برخورد کنم؟ چرا بعضی روابط تکرار می‌شوند؟
+        </p>
+      </Card>
+
+      {/* راهنمای برخورد */}
+      <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+          راهنمای برخورد با هر طرحواره
+        </div>
+        <div style={{ fontSize: 13, lineHeight: 1.9, opacity: 0.9 }}>
+          اگر طرف مقابلت این الگو را دارد، چطور باید برخورد کنی؟
+        </div>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {SCHEMAS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onPickResponseGuide(s.id)}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,.2)",
+                background: "transparent",
+                color: "#fff",
+                cursor: "pointer",
+                textAlign: "right",
+                fontFamily: "inherit",
+                fontSize: 14
+              }}
+            >
+              {s.name_fa} →
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* الگوهای جذب */}
+      <h3 style={{ margin: "22px 0 10px", fontSize: 15 }}>
+        الگوهای جذب
+      </h3>
+      <p style={{ margin: "0 0 12px", fontSize: 13, color: "#888", lineHeight: 1.8 }}>
+        چرا بعضی روابط همیشه شبیه هم‌اند؟ اینجا ترکیب‌های رایج را می‌بینی.
+      </p>
+
+      {relevantPatterns.map((p) => (
+        <button
+          key={p.id}
+          onClick={() => onPickPattern(p.id)}
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "right",
+            padding: 14,
+            marginBottom: 8,
+            borderRadius: 12,
+            border: "1px solid #eee",
+            background: "#fff",
+            cursor: "pointer",
+            fontFamily: "inherit"
+          }}
+        >
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>
+            {p.shortName}
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.7 }}>
+            {p.title}
+          </div>
+        </button>
+      ))}
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۱۷. جزئیات الگوی جذب (جدید)
+ * ========================================================= */
+
+function RelationshipDetailView({ patternId, onBack, onSOS }) {
+  const pattern = ATTRACTION_PATTERNS.find((p) => p.id === patternId);
+
+  if (!pattern) {
+    return (
+      <Shell title="خطا" onBack={onBack} showSOS onSOS={onSOS}>
+        <Card><p>الگو پیدا نشد.</p></Card>
+      </Shell>
+    );
+  }
+
+  const schemas = pattern.schemas
+    .map((id) => SCHEMAS.find((s) => s.id === id))
+    .filter(Boolean);
+
+  return (
+    <Shell title={pattern.shortName} onBack={onBack} showSOS onSOS={onSOS}>
+      <Card>
+        <h2 style={{ margin: "0 0 6px", fontSize: 18, lineHeight: 1.7 }}>
+          {pattern.title}
+        </h2>
+        <div style={{ fontSize: 13, color: "#888", marginBottom: 14 }}>
+          {schemas.map((s) => s.name_fa).join(" + ")}
+        </div>
+
+        <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
+          {pattern.dynamic}
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+          معمولاً چطور پیش می‌رود
+        </div>
+        <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
+          {pattern.typical}
+        </div>
+      </Card>
+
+      <Card style={{ marginTop: 12, background: "#fef3f2" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#c0392b" }}>
+          چالش‌ها
+        </div>
+        {pattern.challenges.map((c, i) => (
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#555", marginBottom: 4 }}>
+            • {c}
+          </div>
+        ))}
+      </Card>
+
+      <Card style={{ marginTop: 12, background: "#eef7ee" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#1b5e20" }}>
+          چه چیزی کمک می‌کند
+        </div>
+        {pattern.whatHelps.map((h, i) => (
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1b5e20", marginBottom: 4 }}>
+            ✓ {h}
+          </div>
+        ))}
+      </Card>
+
+      <Card style={{ marginTop: 12, background: "#fff8e1" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#e65100" }}>
+          چه چیزی اوضاع را بدتر می‌کند
+        </div>
+        {pattern.whatHurts.map((h, i) => (
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#e65100", marginBottom: 4 }}>
+            ✕ {h}
+          </div>
+        ))}
+      </Card>
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۱۸. راهنمای برخورد با یک طرحواره (جدید)
+ * ========================================================= */
+
+function ResponseGuideView({ schemaId, onBack, onSOS }) {
+  const guide = getResponseGuide(schemaId);
+  const schema = SCHEMAS.find((s) => s.id === schemaId);
+
+  if (!guide) {
+    return (
+      <Shell title="خطا" onBack={onBack} showSOS onSOS={onSOS}>
+        <Card><p>راهنمایی پیدا نشد.</p></Card>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell title={guide.name} onBack={onBack} showSOS onSOS={onSOS}>
+      <Card style={{ background: "#111", color: "#fff" }}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
+          قاعده طلایی
+        </div>
+        <div style={{ fontSize: 16, lineHeight: 1.9, fontWeight: 600 }}>
+          {guide.goldenRule}
+        </div>
+      </Card>
+
+      {schema && (
+        <Card style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 13, color: "#666", lineHeight: 1.8 }}>
+            {schema.short_description}
+          </div>
+        </Card>
+      )}
+
+      <Card style={{ marginTop: 12, background: "#eef7ee" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#1b5e20" }}>
+          ✓ این کارها را بکن
+        </div>
+        {guide.doThis.map((d, i) => (
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1b5e20", marginBottom: 6 }}>
+            • {d}
+          </div>
+        ))}
+      </Card>
+
+      <Card style={{ marginTop: 12, background: "#fef3f2" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "#c0392b" }}>
+          ✕ این کارها را نکن
+        </div>
+        {guide.dontDoThis.map((d, i) => (
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#c0392b", marginBottom: 6 }}>
+            • {d}
+          </div>
+        ))}
+      </Card>
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۱۹. صفحه شکستن چرخه (جدید)
+ * ========================================================= */
+
+function BreakCycleView({ onBack, onSOS }) {
+  return (
+    <Shell title="چطور چرخه را بشکنم" onBack={onBack} showSOS onSOS={onSOS}>
+      <Card>
+        <p style={{ margin: 0, fontSize: 14, color: "#666", lineHeight: 1.9 }}>
+          هر بار که این ۶ قدم را طی کنی، مغزت یاد می‌گیرد که لازم نیست همیشه
+          واکنش قدیمی را اجرا کند.
+        </p>
+      </Card>
+
+      {BREAK_CYCLE_GUIDE.steps.map((s) => (
+        <Card key={s.num} style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "50%",
+                background: "#111",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: 16,
+                flexShrink: 0
+              }}
+            >
+              {toFa(s.num)}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+                {s.title}
+              </div>
+              <div style={{ fontSize: 14, color: "#555", lineHeight: 1.8 }}>
+                {s.desc}
+              </div>
+            </div>
+          </div>
+        </Card>
+      ))}
+
+      <Card style={{ marginTop: 16, background: "#111", color: "#fff" }}>
+        <div style={{ fontSize: 14, lineHeight: 1.9, textAlign: "center" }}>
+          تغییر با ۱۰۰ بار تکرار می‌آید، نه با یک بار موفقیت.
+        </div>
+      </Card>
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۲۰. صفحه پیشرفت
  * ========================================================= */
 
 function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) {
@@ -1380,7 +1941,7 @@ function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) 
 }
 
 /* =========================================================
- * ۱۵. جریان سریع
+ * ۲۱. جریان سریع
  * ========================================================= */
 
 function QuickCheckView({ profiles, onDone, onBack }) {
@@ -1489,19 +2050,21 @@ function QuickCheckView({ profiles, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۶. اپ اصلی
+ * ۲۲. اپ اصلی
  * ========================================================= */
 
 export default function App() {
   const [view, setView] = useState("loading");
   const [analysis, setAnalysis] = useState(null);
   const [activeSchemaId, setActiveSchemaId] = useState(null);
+  const [activeSituationId, setActiveSituationId] = useState(null);
+  const [activePatternId, setActivePatternId] = useState(null);
+  const [activeGuideSchemaId, setActiveGuideSchemaId] = useState(null);
   const [selection, setSelection] = useState(null);
   const [exerciseRecord, setExerciseRecord] = useState(null);
   const [missionRecord, setMissionRecord] = useState(null);
   const [returnTo, setReturnTo] = useState("welcome");
 
-  // بارگذاری اولیه: پروفایل + بررسی چک‌این
   useEffect(() => {
     Promise.all([loadProfile(), hasCheckedInToday()]).then(([p, checkedIn]) => {
       if (p) setAnalysis(p);
@@ -1528,7 +2091,6 @@ export default function App() {
     go("sos");
   };
 
-  // جمله امروز برای welcome
   const todayPhrase = useMemo(() => {
     const all = [];
     for (const s of SCHEMAS) {
@@ -1540,7 +2102,6 @@ export default function App() {
     return all[day % all.length];
   }, []);
 
-  /* ---------- Loading ---------- */
   if (view === "loading") {
     return (
       <div style={styles.app}>
@@ -1549,17 +2110,16 @@ export default function App() {
     );
   }
 
-  /* ---------- Check-In ---------- */
   if (view === "checkin") {
     return (
       <CheckInView
+        analysis={analysis}
         onDone={() => go(analysis ? "profile" : "welcome")}
         onSkip={() => go(analysis ? "profile" : "welcome")}
       />
     );
   }
 
-  /* ---------- SOS ---------- */
   if (view === "sos") {
     return (
       <SOSView
@@ -1569,7 +2129,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Welcome ---------- */
   if (view === "welcome") {
     return (
       <WelcomeView
@@ -1578,11 +2137,12 @@ export default function App() {
         onSkipToProfile={() => go("profile")}
         phrase={todayPhrase}
         onSOS={openSOS}
+        onSituations={() => go("situations")}
+        onRelationships={() => go("relationships")}
       />
     );
   }
 
-  /* ---------- YSQ ---------- */
   if (view === "ysq") {
     return (
       <YSQView
@@ -1598,7 +2158,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Profile ---------- */
   if (view === "profile") {
     return (
       <ProfileView
@@ -1608,6 +2167,8 @@ export default function App() {
         onWins={() => go("wins")}
         onCalendar={() => go("calendar")}
         onSOS={openSOS}
+        onSituations={() => go("situations")}
+        onRelationships={() => go("relationships")}
         onPickSchema={(id) => {
           setActiveSchemaId(id);
           go("cycle");
@@ -1616,7 +2177,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Cycle ---------- */
   if (view === "cycle" && activeSchemaId) {
     return (
       <CycleView
@@ -1630,7 +2190,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Cycle Summary ---------- */
   if (view === "cycle_summary" && selection) {
     return (
       <CycleSummaryView
@@ -1642,7 +2201,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Exercise ---------- */
   if (view === "exercise") {
     return (
       <ExerciseView
@@ -1657,7 +2215,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Mission ---------- */
   if (view === "mission") {
     return (
       <MissionView
@@ -1671,7 +2228,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Log ---------- */
   if (view === "log") {
     return (
       <LogResultView
@@ -1693,7 +2249,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Progress ---------- */
   if (view === "progress") {
     return (
       <ProgressView
@@ -1707,7 +2262,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Wins ---------- */
   if (view === "wins") {
     return (
       <WinsView
@@ -1717,7 +2271,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Calendar ---------- */
   if (view === "calendar") {
     return (
       <CalendarView
@@ -1727,7 +2280,80 @@ export default function App() {
     );
   }
 
-  /* ---------- Quick ---------- */
+  if (view === "situations") {
+    return (
+      <SituationsView
+        onBack={() => go(analysis ? "profile" : "welcome")}
+        onSOS={openSOS}
+        onPickSituation={(id) => {
+          setActiveSituationId(id);
+          go("situation_detail");
+        }}
+      />
+    );
+  }
+
+  if (view === "situation_detail" && activeSituationId) {
+    return (
+      <SituationDetailView
+        situationId={activeSituationId}
+        onBack={() => go("situations")}
+        onSOS={openSOS}
+        onPickSchema={(id) => {
+          setActiveSchemaId(id);
+          go("cycle");
+        }}
+      />
+    );
+  }
+
+  if (view === "relationships") {
+    return (
+      <RelationshipsView
+        analysis={analysis}
+        onBack={() => go(analysis ? "profile" : "welcome")}
+        onSOS={openSOS}
+        onPickPattern={(id) => {
+          setActivePatternId(id);
+          go("relationship_detail");
+        }}
+        onPickResponseGuide={(id) => {
+          setActiveGuideSchemaId(id);
+          go("response_guide");
+        }}
+      />
+    );
+  }
+
+  if (view === "relationship_detail" && activePatternId) {
+    return (
+      <RelationshipDetailView
+        patternId={activePatternId}
+        onBack={() => go("relationships")}
+        onSOS={openSOS}
+      />
+    );
+  }
+
+  if (view === "response_guide" && activeGuideSchemaId) {
+    return (
+      <ResponseGuideView
+        schemaId={activeGuideSchemaId}
+        onBack={() => go("relationships")}
+        onSOS={openSOS}
+      />
+    );
+  }
+
+  if (view === "break_cycle") {
+    return (
+      <BreakCycleView
+        onBack={() => go(analysis ? "profile" : "welcome")}
+        onSOS={openSOS}
+      />
+    );
+  }
+
   if (view === "quick") {
     return (
       <QuickCheckView
@@ -1746,7 +2372,7 @@ export default function App() {
 }
 
 /* =========================================================
- * ۱۷. استایل‌ها
+ * ۲۳. استایل‌ها
  * ========================================================= */
 
 const styles = {
