@@ -1,5 +1,5 @@
 // App.jsx
-// نسخه 2.0 — هم‌راستا با SCHEMAS.js v2.0
+// نسخه 2.1 — با MissionView چند‌گزینه‌ای
 // جریان کامل اپ — بدون AI
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -289,7 +289,12 @@ function ProfileView({ analysis, onPickSchema, onRetake, onBack }) {
   const { high, medium, low, recommended } = analysis;
 
   return (
-    <Shell title="پروفایل الگوهای من" onBack={onBack} showQuickButton onQuick={() => onPickSchema(recommended?.schemaId)}>
+    <Shell
+      title="پروفایل الگوهای من"
+      onBack={onBack}
+      showQuickButton
+      onQuick={() => onPickSchema(recommended?.schemaId)}
+    >
       <Card style={{ background: "#111", color: "#fff" }}>
         <div style={{ fontSize: 12, opacity: 0.7 }}>پیشنهاد شروع</div>
         <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
@@ -387,7 +392,7 @@ function ProfileView({ analysis, onPickSchema, onRetake, onBack }) {
 }
 
 /* =========================================================
- * ۵. صفحه چرخه — «این الگو چگونه در زندگی تو ظاهر می‌شود؟»
+ * ۵. صفحه چرخه
  * ========================================================= */
 
 function CycleView({ schemaId, onDone, onBack }) {
@@ -504,7 +509,7 @@ function CycleView({ schemaId, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۶. صفحه نمایش چرخه — «این چرخه توست»
+ * ۶. صفحه نمایش چرخه
  * ========================================================= */
 
 function CycleSummaryView({ schemaId, selection, onContinue, onBack }) {
@@ -589,30 +594,78 @@ function ExerciseView({ schemaId, selection, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۸. صفحه مأموریت
+ * ۸. صفحه مأموریت (چند گزینه‌ای)
  * ========================================================= */
 
 function MissionView({ schemaId, onDone, onBack }) {
   const schema = SCHEMAS.find((s) => s.id === schemaId);
-  const mission = schema?.real_life_missions?.[0];
+  const missions = schema?.real_life_missions || [];
+  const [selectedId, setSelectedId] = useState(missions[0]?.id || null);
+
+  if (missions.length === 0) {
+    return (
+      <Shell title="مأموریت امروز" onBack={onBack}>
+        <Card>
+          <p>مأموریتی برای این الگو تعریف نشده.</p>
+        </Card>
+        <div style={{ marginTop: 12 }}>
+          <Btn onClick={() => onDone(null)}>ادامه</Btn>
+        </div>
+      </Shell>
+    );
+  }
+
+  const selected = missions.find((m) => m.id === selectedId) || missions[0];
 
   return (
     <Shell title="مأموریت امروز" onBack={onBack}>
-      <Card style={{ background: "#111", color: "#fff" }}>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>امروز</div>
-        <p style={{ fontSize: 17, lineHeight: 1.9, margin: "8px 0 0" }}>
-          {mission?.text || "امروز وقتی این الگو فعال شد، یک لحظه مکث کن."}
+      <Card>
+        <p style={{ margin: "0 0 14px", fontSize: 14, color: "#666" }}>
+          یکی را انتخاب کن. فقط یکی — کوچک‌ترین که می‌توانی.
         </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {missions.map((m) => {
+            const active = selectedId === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setSelectedId(m.id)}
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: active ? "2px solid #111" : "1px solid #e5e5e5",
+                  background: active ? "#111" : "#fff",
+                  color: active ? "#fff" : "#333",
+                  fontSize: 14,
+                  textAlign: "right",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  lineHeight: 1.7
+                }}
+              >
+                {m.text}
+              </button>
+            );
+          })}
+        </div>
       </Card>
 
       <Card style={{ marginTop: 12, background: "#f6f6f6" }}>
         <div style={{ fontSize: 13, color: "#555", lineHeight: 1.9 }}>
-          لازم نیست کامل انجامش بدهی. فقط همین که تلاش کنی، خودش تغییر است.
+          لازم نیست کامل انجامش بدهی.
+          <br />
+          حتی اگر فقط به آن فکر کنی، همین هم یک قدم است.
         </div>
       </Card>
 
       <div style={{ marginTop: 16 }}>
-        <Btn onClick={() => onDone(mission)}>متوجه شدم</Btn>
+        <Btn onClick={() => onDone(selected)}>انتخاب کردم</Btn>
+        <div style={{ marginTop: 8 }}>
+          <Btn variant="ghost" onClick={() => onDone(null)}>
+            الان نمی‌توانم — رد کن
+          </Btn>
+        </div>
       </div>
     </Shell>
   );
@@ -932,7 +985,7 @@ function ProgressView({ schemaId, onBack, onQuick }) {
 }
 
 /* =========================================================
- * ۱۱. جریان سریع — «⚡ همین الان فعال شد»
+ * ۱۱. جریان سریع
  * ========================================================= */
 
 function QuickCheckView({ profiles, onDone, onBack }) {
@@ -1101,7 +1154,6 @@ export default function App() {
   const [missionRecord, setMissionRecord] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
-  // بارگذاری پروفایل ذخیره‌شده
   useEffect(() => {
     loadProfile().then((p) => {
       if (p) setAnalysis(p);
@@ -1127,7 +1179,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Welcome ---------- */
   if (view === "welcome") {
     return (
       <WelcomeView
@@ -1138,7 +1189,6 @@ export default function App() {
     );
   }
 
-  /* ---------- YSQ ---------- */
   if (view === "ysq") {
     return (
       <YSQView
@@ -1154,7 +1204,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Profile ---------- */
   if (view === "profile") {
     return (
       <ProfileView
@@ -1169,7 +1218,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Cycle ---------- */
   if (view === "cycle" && activeSchemaId) {
     return (
       <CycleView
@@ -1183,7 +1231,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Cycle Summary ---------- */
   if (view === "cycle_summary" && selection) {
     return (
       <CycleSummaryView
@@ -1195,7 +1242,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Exercise ---------- */
   if (view === "exercise") {
     return (
       <ExerciseView
@@ -1210,7 +1256,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Mission ---------- */
   if (view === "mission") {
     return (
       <MissionView
@@ -1224,7 +1269,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Log ---------- */
   if (view === "log") {
     return (
       <LogResultView
@@ -1246,7 +1290,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Progress ---------- */
   if (view === "progress") {
     return (
       <ProgressView
@@ -1257,7 +1300,6 @@ export default function App() {
     );
   }
 
-  /* ---------- Quick ---------- */
   if (view === "quick") {
     return (
       <QuickCheckView
