@@ -1,74 +1,36 @@
 // App.jsx
-// نسخه 7.0 — کامل با ریشه‌های کودکی و راهنمای خوددرمانی
-// بدون AI — کاملاً Rule-Based
+// نسخه 8.0 — اسم‌های ساده + راهنمای بعد از ریشه + مأموریت‌های بهتر
+// بدون AI
 
 import React, { useState, useEffect, useMemo } from "react";
 
+import { SCHEMAS, DOMAINS, resolveExercise, getReplacementResponse } from "./SCHEMAS";
+import { ExerciseRenderer, resolveExerciseFromRule } from "./EXERCISES";
+import { YSQ_QUESTIONS, LIKERT_SCALE, analyzeYSQ, validateAnswers, buildResultPayload } from "./YSQ_QUESTIONS";
 import {
-  SCHEMAS,
-  DOMAINS,
-  resolveExercise,
-  getReplacementResponse
-} from "./SCHEMAS";
-
-import {
-  ExerciseRenderer,
-  resolveExerciseFromRule
-} from "./EXERCISES";
-
-import {
-  YSQ_QUESTIONS,
-  LIKERT_SCALE,
-  analyzeYSQ,
-  validateAnswers,
-  buildResultPayload
-} from "./YSQ_QUESTIONS";
-
-import {
-  recordCycle,
-  buildProgressSummary,
-  registerIdLabels,
-  toFa,
-  saveProfile,
-  loadProfile,
-  getWins,
-  describeWin,
-  addCheckIn,
-  hasCheckedInToday,
-  getTodayCheckIn,
-  getCalendarData
+  recordCycle, buildProgressSummary, registerIdLabels, toFa,
+  saveProfile, loadProfile, getWins, describeWin, addCheckIn,
+  hasCheckedInToday, getTodayCheckIn, getCalendarData
 } from "./PROGRESS";
-
-import {
-  getMicroMissions,
-  getCompassionatePhrases,
-  getTodayPrompt
-} from "./EXTRAS";
-
-import {
-  SITUATIONS,
-  SITUATION_CATEGORIES,
-  getSituationsByCategory,
-  getSituation
-} from "./SITUATIONS";
-
-import {
-  ATTRACTION_PATTERNS,
-  HOW_TO_RESPOND,
-  BREAK_CYCLE_GUIDE,
-  findAttractionsForSchema,
-  getResponseGuide
-} from "./RELATIONSHIPS";
-
+import { getMicroMissions, getCompassionatePhrases, getTodayPrompt } from "./EXTRAS";
+import { SITUATIONS, SITUATION_CATEGORIES, getSituationsByCategory, getSituation } from "./SITUATIONS";
+import { ATTRACTION_PATTERNS, HOW_TO_RESPOND, BREAK_CYCLE_GUIDE, getResponseGuide } from "./RELATIONSHIPS";
 import { getOrigin } from "./ORIGINS";
+import { PLAIN_NAMES, NEXT_STEPS, getPlainName, getOneLiner, getNextSteps } from "./SIMPLE_LANGUAGE";
 
 /* =========================================================
- * ۰. ثبت برچسب‌ها
+ * ۰. ثبت برچسب‌ها + اضافه کردن اسم ساده به schemaها
  * ========================================================= */
 
 const LABELS = {};
 for (const s of SCHEMAS) {
   LABELS[s.id] = s.name_fa;
+  // اضافه کردن اسم ساده به هر schema
+  const plain = PLAIN_NAMES[s.id];
+  if (plain) {
+    s.name_plain = plain.plain;
+    s.one_liner = plain.oneLiner;
+  }
   for (const t of s.triggers) LABELS[t.id] = t.text;
   for (const th of s.automatic_thoughts) LABELS[th.id] = th.text;
   for (const e of s.emotional_signals) LABELS[e.id] = e.text;
@@ -96,35 +58,19 @@ function Shell({ children, title, onBack, showQuickButton, onQuick, showSOS, onS
           <div style={{ width: 32 }} />
         )}
       </header>
-
       <main style={styles.main}>{children}</main>
-
       {showQuickButton && (
-        <button onClick={onQuick} style={styles.quickBtn}>
-          ⚡ همین الان فعال شد
-        </button>
+        <button onClick={onQuick} style={styles.quickBtn}>⚡ همین الان فعال شد</button>
       )}
     </div>
   );
 }
 
 function Btn({ children, onClick, variant = "primary", disabled }) {
-  const v = {
-    primary: styles.btnPrimary,
-    ghost: styles.btnGhost,
-    danger: styles.btnDanger
-  }[variant];
+  const v = { primary: styles.btnPrimary, ghost: styles.btnGhost, danger: styles.btnDanger }[variant];
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        ...styles.btn,
-        ...v,
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? "not-allowed" : "pointer"
-      }}
-    >
+    <button onClick={onClick} disabled={disabled}
+      style={{ ...styles.btn, ...v, opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}>
       {children}
     </button>
   );
@@ -138,46 +84,31 @@ function ProgressBar({ value, max = 100, color = "#111", height = 8 }) {
   const pct = max === 0 ? 0 : Math.min(100, Math.round((value / max) * 100));
   return (
     <div style={{ height, background: "#eee", borderRadius: 6, overflow: "hidden" }}>
-      <div
-        style={{
-          height: "100%",
-          width: pct + "%",
-          background: color,
-          transition: "width .4s ease"
-        }}
-      />
+      <div style={{ height: "100%", width: pct + "%", background: color, transition: "width .4s ease" }} />
     </div>
   );
 }
 
 function Chip({ children, active, onClick, color = "#111" }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "6px 14px",
-        borderRadius: 999,
-        border: active ? `2px solid ${color}` : "1px solid #e5e5e5",
-        background: active ? color : "#fff",
-        color: active ? "#fff" : "#555",
-        fontSize: 13,
-        cursor: "pointer",
-        fontFamily: "inherit",
-        whiteSpace: "nowrap"
-      }}
-    >
-      {children}
-    </button>
+    <button onClick={onClick} style={{
+      padding: "6px 14px", borderRadius: 999,
+      border: active ? `2px solid ${color}` : "1px solid #e5e5e5",
+      background: active ? color : "#fff", color: active ? "#fff" : "#555",
+      fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap"
+    }}>{children}</button>
   );
 }
 
 /* =========================================================
- * ۲. صفحه ریشه‌ی الگو
+ * ۲. صفحه ریشه + حالا باید چکار کنی
  * ========================================================= */
 
 function OriginView({ schemaId, onBack, onSOS }) {
   const schema = SCHEMAS.find((s) => s.id === schemaId);
   const origin = getOrigin(schemaId);
+  const nextSteps = getNextSteps(schemaId);
+  const plainName = getPlainName(schemaId);
 
   if (!origin) {
     return (
@@ -188,14 +119,15 @@ function OriginView({ schemaId, onBack, onSOS }) {
   }
 
   return (
-    <Shell title="ریشه‌ی این الگو" onBack={onBack} showSOS onSOS={onSOS}>
+    <Shell title={plainName || "ریشه‌ی این الگو"} onBack={onBack} showSOS onSOS={onSOS}>
       <Card style={{ background: "#111", color: "#fff" }}>
-        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
-          الگو
-        </div>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>الگو</div>
         <div style={{ fontSize: 18, fontWeight: 700 }}>
-          {schema?.name_fa}
+          {plainName || schema?.name_fa}
         </div>
+        {plainName && schema && (
+          <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>{schema.name_fa}</div>
+        )}
       </Card>
 
       <Card style={{ marginTop: 12, background: "#eef4ff" }}>
@@ -212,19 +144,10 @@ function OriginView({ schemaId, onBack, onSOS }) {
           🧸 در کودکی چه اتفاقی افتاد؟
         </div>
         {origin.childhood.map((c, i) => (
-          <div
-            key={i}
-            style={{
-              fontSize: 14,
-              lineHeight: 1.9,
-              color: "#555",
-              marginBottom: 10,
-              paddingRight: 12,
-              borderRight: "3px solid #eee"
-            }}
-          >
-            {c}
-          </div>
+          <div key={i} style={{
+            fontSize: 14, lineHeight: 1.9, color: "#555",
+            marginBottom: 10, paddingRight: 12, borderRight: "3px solid #eee"
+          }}>{c}</div>
         ))}
       </Card>
 
@@ -242,20 +165,10 @@ function OriginView({ schemaId, onBack, onSOS }) {
           🔊 این صداها برایت آشناست؟
         </div>
         {origin.innerVoice.map((v, i) => (
-          <div
-            key={i}
-            style={{
-              fontSize: 14,
-              lineHeight: 1.9,
-              color: "#555",
-              marginBottom: 8,
-              padding: "8px 12px",
-              background: "#f6f6f6",
-              borderRadius: 8
-            }}
-          >
-            «{v}»
-          </div>
+          <div key={i} style={{
+            fontSize: 14, lineHeight: 1.9, color: "#555",
+            marginBottom: 8, padding: "8px 12px", background: "#f6f6f6", borderRadius: 8
+          }}>«{v}»</div>
         ))}
       </Card>
 
@@ -264,23 +177,39 @@ function OriginView({ schemaId, onBack, onSOS }) {
           🕊️ کودکی که بودی، این‌ها را لازم داشت
         </div>
         {origin.whatWasMissing.map((w, i) => (
-          <div
-            key={i}
-            style={{
-              fontSize: 14,
-              lineHeight: 1.9,
-              color: "#555",
-              marginBottom: 8
-            }}
-          >
+          <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#555", marginBottom: 8 }}>
             • {w}
           </div>
         ))}
       </Card>
 
       <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
-        <div style={{ fontSize: 14, lineHeight: 2 }}>
-          {origin.gentleReminder}
+        <div style={{ fontSize: 14, lineHeight: 2 }}>{origin.gentleReminder}</div>
+      </Card>
+
+      {/* 🕊️ حالا باید چکار کنی */}
+      {nextSteps.length > 0 && (
+        <Card style={{ marginTop: 12, background: "#eef7ee" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: "#1b5e20" }}>
+            🕊️ حالا باید چکار کنی؟
+          </div>
+          {nextSteps.map((step, i) => (
+            <div key={i} style={{
+              fontSize: 14, lineHeight: 1.9, color: "#1b5e20",
+              marginBottom: 10, paddingRight: 12,
+              borderRight: "3px solid #27ae60"
+            }}>
+              {step}
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <Card style={{ marginTop: 12, background: "#f6f6f6" }}>
+        <div style={{ fontSize: 13, color: "#666", lineHeight: 1.9, textAlign: "center" }}>
+          این کارها رو یک‌جا نمی‌شه انجام داد.
+          <br />
+          هر روز یک قدم کوچیک — همین کافیه.
         </div>
       </Card>
     </Shell>
@@ -315,13 +244,10 @@ function CheckInView({ analysis, onDone, onSkip }) {
     return (
       <Shell title="صبح بخیر">
         <Card>
-          <p style={{ margin: "0 0 6px", fontSize: 14, color: "#888" }}>
-            {prompt}
-          </p>
+          <p style={{ margin: "0 0 6px", fontSize: 14, color: "#888" }}>{prompt}</p>
           <p style={{ margin: "20px 0 16px", fontSize: 16, fontWeight: 600 }}>
             امروز چه احساسی داری؟
           </p>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button onClick={() => { setMood("good"); setPhase("schema"); }} style={styles.moodBtn}>
               <span style={{ fontSize: 28 }}>😊</span>
@@ -337,7 +263,6 @@ function CheckInView({ analysis, onDone, onSkip }) {
             </button>
           </div>
         </Card>
-
         <div style={{ marginTop: 16 }}>
           <Btn variant="ghost" onClick={onSkip}>رد کن</Btn>
         </div>
@@ -355,34 +280,26 @@ function CheckInView({ analysis, onDone, onSkip }) {
           <p style={{ margin: "0 0 16px", fontSize: 13, color: "#888" }}>
             فقط الگوهای خودت نشان داده می‌شوند.
           </p>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {activeSchemas.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSchemaId(s.id)}
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border: schemaId === s.id ? "2px solid #111" : "1px solid #e5e5e5",
-                  background: schemaId === s.id ? "#111" : "#fff",
-                  color: schemaId === s.id ? "#fff" : "#333",
-                  fontSize: 14,
-                  textAlign: "right",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  lineHeight: 1.6
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>{s.name_fa}</div>
+              <button key={s.id} onClick={() => setSchemaId(s.id)} style={{
+                padding: "12px 14px", borderRadius: 10,
+                border: schemaId === s.id ? "2px solid #111" : "1px solid #e5e5e5",
+                background: schemaId === s.id ? "#111" : "#fff",
+                color: schemaId === s.id ? "#fff" : "#333",
+                fontSize: 14, textAlign: "right", cursor: "pointer",
+                fontFamily: "inherit", lineHeight: 1.6
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  {s.name_plain || s.name_fa}
+                </div>
                 <div style={{ fontSize: 12, opacity: 0.7, lineHeight: 1.5 }}>
-                  {s.short_description}
+                  {s.one_liner || s.short_description}
                 </div>
               </button>
             ))}
           </div>
         </Card>
-
         <div style={{ marginTop: 16 }}>
           <Btn onClick={() => setPhase("note")}>بعدی</Btn>
           <div style={{ marginTop: 8 }}>
@@ -402,29 +319,17 @@ function CheckInView({ analysis, onDone, onSkip }) {
           <div style={{ fontSize: 14, color: "#666", marginBottom: 8 }}>
             چیز دیگری می‌خواهی بگویی؟ (اختیاری)
           </div>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            placeholder="هر چیزی که به ذهنت می‌آید..."
-            style={styles.textarea}
-          />
+          <textarea value={note} onChange={(e) => setNote(e.target.value)}
+            rows={3} placeholder="هر چیزی که به ذهنت می‌آید..." style={styles.textarea} />
         </Card>
-
         <div style={{ marginTop: 16 }}>
-          <Btn
-            onClick={async () => {
-              await addCheckIn({ mood, schemaId, note });
-              onDone();
-            }}
-          >
+          <Btn onClick={async () => { await addCheckIn({ mood, schemaId, note }); onDone(); }}>
             ثبت کن
           </Btn>
         </div>
       </Shell>
     );
   }
-
   return null;
 }
 
@@ -434,13 +339,11 @@ function CheckInView({ analysis, onDone, onSkip }) {
 
 function SOSView({ onBack, onBetter }) {
   const [phase, setPhase] = useState("breathe");
-
   const BREATH_PHASES = [
     { name: "دم", dur: 4 },
     { name: "نگه‌دار", dur: 7 },
     { name: "بازدم", dur: 8 }
   ];
-
   const [breathIdx, setBreathIdx] = useState(0);
   const [countdown, setCountdown] = useState(BREATH_PHASES[0].dur);
 
@@ -472,9 +375,7 @@ function SOSView({ onBack, onBetter }) {
     return all;
   }, []);
 
-  const [randomPhrase] = useState(
-    () => phrases[Math.floor(Math.random() * phrases.length)]
-  );
+  const [randomPhrase] = useState(() => phrases[Math.floor(Math.random() * phrases.length)]);
 
   if (phase === "breathe") {
     const current = BREATH_PHASES[breathIdx];
@@ -484,7 +385,6 @@ function SOSView({ onBack, onBetter }) {
           <h2 style={{ color: "#fff", fontSize: 20, margin: "0 0 30px" }}>
             این هم می‌گذرد
           </h2>
-
           <div style={styles.breathCircle}>
             <div style={styles.breathInner}>
               <div style={{ fontSize: 40, fontWeight: 700, color: "#fff" }}>
@@ -495,44 +395,21 @@ function SOSView({ onBack, onBetter }) {
               </div>
             </div>
           </div>
-
           <p style={{ color: "rgba(255,255,255,.8)", fontSize: 14, margin: "30px 0 20px", lineHeight: 1.9 }}>
-            با من نفس بکش.
-            <br />
-            فقط همین لحظه کافی است.
+            با من نفس بکش.<br />فقط همین لحظه کافی است.
           </p>
-
           <div style={{ marginTop: 40, display: "flex", flexDirection: "column", gap: 10, maxWidth: 320, margin: "40px auto 0" }}>
-            <button
-              onClick={() => setPhase("phrase")}
-              style={{
-                padding: 14,
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,.3)",
-                background: "transparent",
-                color: "#fff",
-                fontSize: 15,
-                cursor: "pointer",
-                fontFamily: "inherit"
-              }}
-            >
-              حالم کمی بهتره
-            </button>
-            <button
-              onClick={onBack}
-              style={{
-                padding: 14,
-                borderRadius: 12,
-                border: "none",
-                background: "transparent",
-                color: "rgba(255,255,255,.5)",
-                fontSize: 13,
-                cursor: "pointer",
-                fontFamily: "inherit"
-              }}
-            >
-              بازگشت
-            </button>
+            <button onClick={() => setPhase("phrase")} style={{
+              padding: 14, borderRadius: 12,
+              border: "1px solid rgba(255,255,255,.3)",
+              background: "transparent", color: "#fff",
+              fontSize: 15, cursor: "pointer", fontFamily: "inherit"
+            }}>حالم کمی بهتره</button>
+            <button onClick={onBack} style={{
+              padding: 14, borderRadius: 12, border: "none",
+              background: "transparent", color: "rgba(255,255,255,.5)",
+              fontSize: 13, cursor: "pointer", fontFamily: "inherit"
+            }}>بازگشت</button>
           </div>
         </div>
       </div>
@@ -544,34 +421,20 @@ function SOSView({ onBack, onBetter }) {
       <div dir="rtl" style={styles.sosFull}>
         <div style={{ padding: 30, textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center", minHeight: "100vh" }}>
           <div style={{ fontSize: 40, marginBottom: 20 }}>💙</div>
-
           <p style={{ color: "#fff", fontSize: 18, lineHeight: 2, margin: "0 0 40px" }}>
             {randomPhrase}
           </p>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 320, margin: "0 auto" }}>
-            <button
-              onClick={onBetter}
-              style={{
-                padding: 14,
-                borderRadius: 12,
-                border: "none",
-                background: "#fff",
-                color: "#111",
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit"
-              }}
-            >
-              ادامه
-            </button>
+            <button onClick={onBetter} style={{
+              padding: 14, borderRadius: 12, border: "none",
+              background: "#fff", color: "#111",
+              fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+            }}>ادامه</button>
           </div>
         </div>
       </div>
     );
   }
-
   return null;
 }
 
@@ -583,9 +446,7 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSi
   return (
     <Shell title="الگوهای من" showSOS onSOS={onSOS}>
       <Card>
-        <h2 style={{ margin: "0 0 8px", fontSize: 22 }}>
-          چه چیزی در من تکرار می‌شود؟
-        </h2>
+        <h2 style={{ margin: "0 0 8px", fontSize: 22 }}>چه چیزی در من تکرار می‌شود؟</h2>
         <p style={{ color: "#666", fontSize: 14, lineHeight: 1.8, margin: 0 }}>
           اینجا قرار نیست برچسبی به تو بزنیم.
           قرار است با هم ببینیم چه الگویی در تو تکرار می‌شود، کجا فعال می‌شود،
@@ -595,9 +456,7 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSi
 
       {phrase && (
         <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
-          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
-            یادآوری امروز
-          </div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>یادآوری امروز</div>
           <div style={{ fontSize: 15, lineHeight: 1.9 }}>{phrase}</div>
         </Card>
       )}
@@ -608,12 +467,8 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSi
         ) : (
           <Btn onClick={onStart}>شروع ارزیابی</Btn>
         )}
-        <Btn variant="ghost" onClick={onSituations}>
-          🔍 من الان این حس را دارم
-        </Btn>
-        <Btn variant="ghost" onClick={onRelationships}>
-          💞 چطور با دیگران برخورد کنم
-        </Btn>
+        <Btn variant="ghost" onClick={onSituations}>🔍 من الان این حس را دارم</Btn>
+        <Btn variant="ghost" onClick={onRelationships}>💞 چطور با دیگران برخورد کنم</Btn>
       </div>
 
       <Card style={{ marginTop: 24, background: "#f6f6f6" }}>
@@ -635,7 +490,6 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSi
 function YSQView({ onDone, onBack }) {
   const [answers, setAnswers] = useState({});
   const [index, setIndex] = useState(0);
-
   const q = YSQ_QUESTIONS[index];
   const check = validateAnswers(answers);
   const isLast = index === YSQ_QUESTIONS.length - 1;
@@ -662,28 +516,18 @@ function YSQView({ onDone, onBack }) {
         <p style={{ fontSize: 17, lineHeight: 1.9, margin: "0 0 20px", minHeight: 80 }}>
           {q.text}
         </p>
-
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {LIKERT_SCALE.map((l) => {
             const active = answers[q.id] === l.value;
             return (
-              <button
-                key={l.value}
-                onClick={() => select(l.value)}
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border: active ? "2px solid #111" : "1px solid #e5e5e5",
-                  background: active ? "#111" : "#fff",
-                  color: active ? "#fff" : "#333",
-                  fontSize: 14,
-                  textAlign: "right",
-                  cursor: "pointer",
-                  fontFamily: "inherit"
-                }}
-              >
-                {l.label}
-              </button>
+              <button key={l.value} onClick={() => select(l.value)} style={{
+                padding: "12px 14px", borderRadius: 10,
+                border: active ? "2px solid #111" : "1px solid #e5e5e5",
+                background: active ? "#111" : "#fff",
+                color: active ? "#fff" : "#333",
+                fontSize: 14, textAlign: "right",
+                cursor: "pointer", fontFamily: "inherit"
+              }}>{l.label}</button>
             );
           })}
         </div>
@@ -693,20 +537,14 @@ function YSQView({ onDone, onBack }) {
         <Btn variant="ghost" onClick={() => setIndex(Math.max(0, index - 1))} disabled={index === 0}>
           قبلی
         </Btn>
-        <Btn
-          variant="ghost"
-          onClick={() => setIndex(Math.min(YSQ_QUESTIONS.length - 1, index + 1))}
-          disabled={isLast}
-        >
+        <Btn variant="ghost" onClick={() => setIndex(Math.min(YSQ_QUESTIONS.length - 1, index + 1))} disabled={isLast}>
           بعدی
         </Btn>
       </div>
 
       {check.valid && (
         <div style={{ marginTop: 12 }}>
-          <Btn onClick={() => onDone(answers, analyzeYSQ(answers))}>
-            دیدن پروفایل من
-          </Btn>
+          <Btn onClick={() => onDone(answers, analyzeYSQ(answers))}>دیدن پروفایل من</Btn>
         </div>
       )}
     </Shell>
@@ -714,7 +552,7 @@ function YSQView({ onDone, onBack }) {
 }
 
 /* =========================================================
- * ۷. صفحه پروفایل
+ * ۷. صفحه پروفایل — با اسم ساده
  * ========================================================= */
 
 function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, onWins, onCalendar, onSOS, onSituations, onRelationships }) {
@@ -727,119 +565,105 @@ function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, o
   }
 
   const { high, medium, low, recommended } = analysis;
+  const recSchema = SCHEMAS.find((s) => s.id === recommended?.schemaId);
+  const recPlain = recSchema?.name_plain || recommended?.name;
 
   return (
-    <Shell
-      title="پروفایل الگوهای من"
-      onBack={onBack}
-      showQuickButton
-      onQuick={() => onPickSchema(recommended?.schemaId)}
-      showSOS
-      onSOS={onSOS}
-    >
+    <Shell title="پروفایل الگوهای من" onBack={onBack}
+      showQuickButton onQuick={() => onPickSchema(recommended?.schemaId)}
+      showSOS onSOS={onSOS}>
+
       <Card style={{ background: "#111", color: "#fff" }}>
         <div style={{ fontSize: 12, opacity: 0.7 }}>پیشنهاد شروع</div>
         <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
-          {recommended?.name}
+          {recPlain}
         </div>
-        <div style={{ fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+        {recSchema && (
+          <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
+            {recSchema.name_fa}
+          </div>
+        )}
+        <div style={{ fontSize: 13, opacity: 0.8, marginTop: 6 }}>
           {toFa(recommended?.percentage || 0)}% — اولویت {recommended?.priority?.label}
         </div>
       </Card>
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button onClick={onWins} style={styles.dashBtn}>
-          ⭐ لحظه‌های من
-        </button>
-        <button onClick={onCalendar} style={styles.dashBtn}>
-          📅 تقویم
-        </button>
+        <button onClick={onWins} style={styles.dashBtn}>⭐ لحظه‌های من</button>
+        <button onClick={onCalendar} style={styles.dashBtn}>📅 تقویم</button>
       </div>
-
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <button onClick={onSituations} style={styles.dashBtn}>
-          🔍 موقعیت‌ها
-        </button>
-        <button onClick={onRelationships} style={styles.dashBtn}>
-          💞 روابط
-        </button>
+        <button onClick={onSituations} style={styles.dashBtn}>🔍 موقعیت‌ها</button>
+        <button onClick={onRelationships} style={styles.dashBtn}>💞 روابط</button>
       </div>
 
       <h3 style={{ margin: "22px 0 10px", fontSize: 15 }}>الگوهای فعال</h3>
-      {[...high, ...medium].map((r) => (
-        <Card key={r.schemaId} style={{ marginBottom: 8, padding: 14 }}>
-          <button
-            onClick={() => onPickSchema(r.schemaId)}
-            style={{
-              display: "block",
-              width: "100%",
-              textAlign: "right",
-              padding: 0,
-              border: "none",
-              background: "transparent",
-              cursor: "pointer",
-              fontFamily: "inherit"
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 600, fontSize: 15 }}>{r.name}</span>
-              <span style={{ color: r.priority.color, fontWeight: 700, fontSize: 14 }}>
-                {r.priority.emoji} {toFa(r.percentage)}%
-              </span>
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <ProgressBar value={r.percentage} color={r.priority.color} />
-            </div>
-          </button>
+      {[...high, ...medium].map((r) => {
+        const schema = SCHEMAS.find((s) => s.id === r.schemaId);
+        const plain = schema?.name_plain || r.name;
+        return (
+          <Card key={r.schemaId} style={{ marginBottom: 8, padding: 14 }}>
+            <button onClick={() => onPickSchema(r.schemaId)} style={{
+              display: "block", width: "100%", textAlign: "right",
+              padding: 0, border: "none", background: "transparent",
+              cursor: "pointer", fontFamily: "inherit"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
+                    {plain}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#888" }}>
+                    {schema?.name_fa || ""}
+                  </div>
+                </div>
+                <span style={{ color: r.priority.color, fontWeight: 700, fontSize: 14, marginTop: 4 }}>
+                  {r.priority.emoji} {toFa(r.percentage)}%
+                </span>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <ProgressBar value={r.percentage} color={r.priority.color} />
+              </div>
+              {schema?.one_liner && (
+                <div style={{ fontSize: 13, color: "#666", marginTop: 10, lineHeight: 1.7 }}>
+                  {schema.one_liner}
+                </div>
+              )}
+            </button>
 
-          <button
-            onClick={() => onPickOrigin(r.schemaId)}
-            style={{
-              marginTop: 12,
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #e5e5e5",
-              background: "#fafafa",
-              cursor: "pointer",
-              fontSize: 13,
-              fontFamily: "inherit",
-              color: "#555",
-              width: "100%",
-              textAlign: "right"
-            }}
-          >
-            🧸 این الگو از کجا آمده؟
-          </button>
-        </Card>
-      ))}
+            <button onClick={() => onPickOrigin(r.schemaId)} style={{
+              marginTop: 12, padding: "10px 12px", borderRadius: 8,
+              border: "1px solid #e5e5e5", background: "#fafafa",
+              cursor: "pointer", fontSize: 13, fontFamily: "inherit",
+              color: "#555", width: "100%", textAlign: "right"
+            }}>
+              🧸 این الگو از کجا آمده؟ + حالا چکار کنم؟
+            </button>
+          </Card>
+        );
+      })}
 
       {low.length > 0 && (
         <>
           <h3 style={{ margin: "22px 0 10px", fontSize: 15, color: "#888" }}>سایر الگوها</h3>
-          {low.map((r) => (
-            <Card key={r.schemaId} style={{ marginBottom: 6, padding: 12, background: "#fafafa" }}>
-              <button
-                onClick={() => onPickSchema(r.schemaId)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "right",
-                  padding: 0,
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: 14,
-                  color: "#666",
-                  fontFamily: "inherit"
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>{r.name}</span>
-                  <span>{toFa(r.percentage)}%</span>
-                </div>
-              </button>
-            </Card>
-          ))}
+          {low.map((r) => {
+            const schema = SCHEMAS.find((s) => s.id === r.schemaId);
+            const plain = schema?.name_plain || r.name;
+            return (
+              <Card key={r.schemaId} style={{ marginBottom: 6, padding: 12, background: "#fafafa" }}>
+                <button onClick={() => onPickSchema(r.schemaId)} style={{
+                  display: "block", width: "100%", textAlign: "right",
+                  padding: 0, border: "none", background: "transparent",
+                  cursor: "pointer", fontSize: 14, color: "#666", fontFamily: "inherit"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>{plain}</span>
+                    <span>{toFa(r.percentage)}%</span>
+                  </div>
+                </button>
+              </Card>
+            );
+          })}
         </>
       )}
 
@@ -849,7 +673,6 @@ function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, o
 
       <p style={{ fontSize: 11, color: "#999", marginTop: 20, lineHeight: 1.8 }}>
         این نتایج یک ارزیابی خودگزارشی است و تشخیص بالینی نیست.
-        اگر نیاز به کمک تخصصی داری، با یک درمانگر صحبت کن.
       </p>
     </Shell>
   );
@@ -862,12 +685,7 @@ function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, o
 function CycleView({ schemaId, onDone, onBack }) {
   const schema = SCHEMAS.find((s) => s.id === schemaId);
   const [step, setStep] = useState(0);
-  const [choice, setChoice] = useState({
-    triggerId: null,
-    thoughtId: null,
-    emotionId: null,
-    behaviorId: null
-  });
+  const [choice, setChoice] = useState({ triggerId: null, thoughtId: null, emotionId: null, behaviorId: null });
 
   if (!schema) {
     return (
@@ -890,55 +708,35 @@ function CycleView({ schemaId, onDone, onBack }) {
   const pick = (id) => {
     const next = { ...choice, [current.idKey]: id };
     setChoice(next);
-    if (step < steps.length - 1) {
-      setTimeout(() => setStep(step + 1), 220);
-    } else {
-      setTimeout(() => onDone(next), 300);
-    }
+    if (step < steps.length - 1) setTimeout(() => setStep(step + 1), 220);
+    else setTimeout(() => onDone(next), 300);
   };
 
   return (
-    <Shell title={schema.name_fa} onBack={step === 0 ? onBack : () => setStep(step - 1)}>
+    <Shell title={schema.name_plain || schema.name_fa}
+      onBack={step === 0 ? onBack : () => setStep(step - 1)}>
       <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
         {steps.map((_, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              height: 4,
-              borderRadius: 2,
-              background: i <= step ? "#111" : "#eee"
-            }}
-          />
+          <div key={i} style={{
+            flex: 1, height: 4, borderRadius: 2,
+            background: i <= step ? "#111" : "#eee"
+          }} />
         ))}
       </div>
-
       <Card>
-        <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>
-          {current.title}
-        </p>
-
+        <p style={{ fontSize: 16, fontWeight: 600, margin: "0 0 16px" }}>{current.title}</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {current.items.map((it) => {
             const active = selected === it.id;
             return (
-              <button
-                key={it.id}
-                onClick={() => pick(it.id)}
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border: active ? "2px solid #111" : "1px solid #e5e5e5",
-                  background: active ? "#111" : "#fff",
-                  color: active ? "#fff" : "#333",
-                  fontSize: 14,
-                  textAlign: "right",
-                  cursor: "pointer",
-                  fontFamily: "inherit"
-                }}
-              >
-                {it.text}
-              </button>
+              <button key={it.id} onClick={() => pick(it.id)} style={{
+                padding: "12px 14px", borderRadius: 10,
+                border: active ? "2px solid #111" : "1px solid #e5e5e5",
+                background: active ? "#111" : "#fff",
+                color: active ? "#fff" : "#333",
+                fontSize: 14, textAlign: "right",
+                cursor: "pointer", fontFamily: "inherit"
+              }}>{it.text}</button>
             );
           })}
         </div>
@@ -971,17 +769,11 @@ function CycleSummaryView({ schemaId, selection, onContinue, onViewOrigin, onBac
         <p style={{ margin: "0 0 16px", color: "#666", fontSize: 14 }}>
           این چرخه توست. جایی برای قضاوت نیست — فقط شناخت.
         </p>
-
         {items.map((it, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              gap: 12,
-              padding: "10px 0",
-              borderBottom: i < items.length - 1 ? "1px dashed #eee" : "none"
-            }}
-          >
+          <div key={i} style={{
+            display: "flex", gap: 12, padding: "10px 0",
+            borderBottom: i < items.length - 1 ? "1px dashed #eee" : "none"
+          }}>
             <div style={{ width: 90, color: "#888", fontSize: 13 }}>{it.label}</div>
             <div style={{ flex: 1, fontWeight: 500 }}>{it.value}</div>
           </div>
@@ -996,9 +788,7 @@ function CycleSummaryView({ schemaId, selection, onContinue, onViewOrigin, onBac
 
       <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
         <Btn onClick={onContinue}>بعدی — بیایید این چرخه را بشکنیم</Btn>
-        <Btn variant="ghost" onClick={onViewOrigin}>
-          🧸 این الگو از کجا آمده؟
-        </Btn>
+        <Btn variant="ghost" onClick={onViewOrigin}>🧸 این الگو از کجا آمده؟</Btn>
       </div>
     </Shell>
   );
@@ -1026,17 +816,13 @@ function ExerciseView({ schemaId, selection, onDone, onBack }) {
 
   return (
     <Shell title="تمرین" onBack={onBack}>
-      <ExerciseRenderer
-        exercise={exercise}
-        onComplete={(record) => onDone(record)}
-        onSkip={onDone}
-      />
+      <ExerciseRenderer exercise={exercise} onComplete={(record) => onDone(record)} onSkip={onDone} />
     </Shell>
   );
 }
 
 /* =========================================================
- * ۱۱. صفحه مأموریت
+ * ۱۱. صفحه مأموریت — با نمایش نوع مأموریت
  * ========================================================= */
 
 function MissionView({ schemaId, onDone, onBack }) {
@@ -1057,6 +843,13 @@ function MissionView({ schemaId, onDone, onBack }) {
   }
 
   const selected = missions.find((m) => m.id === selectedId) || missions[0];
+  const typeLabels = {
+    observe: { icon: "🔍", label: "مشاهده" },
+    action: { icon: "✋", label: "اقدام" },
+    write: { icon: "✍️", label: "نوشتن" },
+    "self-talk": { icon: "💬", label: "خودگویی" },
+    experiment: { icon: "🧪", label: "آزمایش" }
+  };
 
   return (
     <Shell title="مأموریت امروز" onBack={onBack}>
@@ -1071,23 +864,19 @@ function MissionView({ schemaId, onDone, onBack }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {missions.map((m) => {
             const active = selectedId === m.id;
+            const type = typeLabels[m.type] || { icon: "•", label: "" };
             return (
-              <button
-                key={m.id}
-                onClick={() => setSelectedId(m.id)}
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border: active ? "2px solid #111" : "1px solid #e5e5e5",
-                  background: active ? "#111" : "#fff",
-                  color: active ? "#fff" : "#333",
-                  fontSize: 14,
-                  textAlign: "right",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  lineHeight: 1.7
-                }}
-              >
+              <button key={m.id} onClick={() => setSelectedId(m.id)} style={{
+                padding: "12px 14px", borderRadius: 10,
+                border: active ? "2px solid #111" : "1px solid #e5e5e5",
+                background: active ? "#111" : "#fff",
+                color: active ? "#fff" : "#333",
+                fontSize: 14, textAlign: "right",
+                cursor: "pointer", fontFamily: "inherit", lineHeight: 1.7
+              }}>
+                <div style={{ fontSize: 10, opacity: 0.7, marginBottom: 4 }}>
+                  {type.icon} {type.label}
+                </div>
                 {m.text}
               </button>
             );
@@ -1106,9 +895,7 @@ function MissionView({ schemaId, onDone, onBack }) {
       <div style={{ marginTop: 16 }}>
         <Btn onClick={() => onDone(selected)}>انتخاب کردم</Btn>
         <div style={{ marginTop: 8 }}>
-          <Btn variant="ghost" onClick={() => onDone(null)}>
-            الان نمی‌توانم — رد کن
-          </Btn>
+          <Btn variant="ghost" onClick={() => onDone(null)}>الان نمی‌توانم — رد کن</Btn>
         </div>
       </div>
     </Shell>
@@ -1123,7 +910,6 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
   const [reaction, setReaction] = useState(null);
   const [missionDone, setMissionDone] = useState(false);
   const [notes, setNotes] = useState("");
-
   const replacement = getReplacementResponse(schemaId, selection.behaviorId);
 
   const options = [
@@ -1138,28 +924,18 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
         <p style={{ margin: "0 0 8px", fontSize: 14, color: "#666" }}>
           وقتی این الگو فعال شد، چه اتفاقی افتاد؟
         </p>
-
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {options.map((o) => {
             const active = reaction === o.id;
             return (
-              <button
-                key={o.id}
-                onClick={() => setReaction(o.id)}
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border: active ? `2px solid ${o.color}` : "1px solid #e5e5e5",
-                  background: active ? o.color : "#fff",
-                  color: active ? "#fff" : "#333",
-                  fontSize: 14,
-                  textAlign: "right",
-                  cursor: "pointer",
-                  fontFamily: "inherit"
-                }}
-              >
-                {o.emoji} {o.label}
-              </button>
+              <button key={o.id} onClick={() => setReaction(o.id)} style={{
+                padding: "12px 14px", borderRadius: 10,
+                border: active ? `2px solid ${o.color}` : "1px solid #e5e5e5",
+                background: active ? o.color : "#fff",
+                color: active ? "#fff" : "#333",
+                fontSize: 14, textAlign: "right",
+                cursor: "pointer", fontFamily: "inherit"
+              }}>{o.emoji} {o.label}</button>
             );
           })}
         </div>
@@ -1172,7 +948,6 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
           </div>
         </Card>
       )}
-
       {reaction === "paused" && (
         <Card style={{ marginTop: 12, background: "#fff8e1" }}>
           <div style={{ fontSize: 14, color: "#e65100", lineHeight: 1.9 }}>
@@ -1180,7 +955,6 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
           </div>
         </Card>
       )}
-
       {replacement && selection.behaviorId && (
         <Card style={{ marginTop: 12, background: "#f6f6f6" }}>
           <div style={{ fontSize: 12, color: "#888", marginBottom: 4 }}>
@@ -1192,12 +966,9 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
 
       <Card style={{ marginTop: 12 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={missionDone}
+          <input type="checkbox" checked={missionDone}
             onChange={(e) => setMissionDone(e.target.checked)}
-            style={{ width: 18, height: 18 }}
-          />
+            style={{ width: 18, height: 18 }} />
           <span style={{ fontSize: 14 }}>مأموریت امروز را انجام دادم</span>
         </label>
       </Card>
@@ -1206,20 +977,13 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
         <div style={{ fontSize: 13, color: "#666", marginBottom: 6 }}>
           یادداشت (اختیاری)
         </div>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          placeholder="چه چیزی کمک کرد؟"
-          style={styles.textarea}
-        />
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)}
+          rows={2} placeholder="چه چیزی کمک کرد؟" style={styles.textarea} />
       </Card>
 
       <div style={{ marginTop: 16 }}>
-        <Btn
-          disabled={!reaction}
-          onClick={() => onDone({ reactionType: reaction, missionDone, notes })}
-        >
+        <Btn disabled={!reaction}
+          onClick={() => onDone({ reactionType: reaction, missionDone, notes })}>
           ثبت
         </Btn>
       </div>
@@ -1233,10 +997,7 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
 
 function WinsView({ onBack, onSOS }) {
   const [wins, setWins] = useState(null);
-
-  useEffect(() => {
-    getWins().then(setWins);
-  }, []);
+  useEffect(() => { getWins().then(setWins); }, []);
 
   if (!wins) {
     return (
@@ -1248,10 +1009,8 @@ function WinsView({ onBack, onSOS }) {
 
   const formatDate = (iso) => {
     const d = new Date(iso);
-    const months = [
-      "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
-      "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
-    ];
+    const months = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+      "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
     const h = d.getHours();
     const m = String(d.getMinutes()).padStart(2, "0");
     return `${toFa(d.getDate())} ${months[d.getMonth()]} — ${toFa(h)}:${toFa(m)}`;
@@ -1295,7 +1054,7 @@ function WinsView({ onBack, onSOS }) {
                   {describeWin(w)}
                 </div>
                 <div style={{ fontSize: 12, color: "#888" }}>
-                  {schema?.name_fa || "—"} • {formatDate(w.createdAt)}
+                  {schema?.name_plain || schema?.name_fa || "—"} • {formatDate(w.createdAt)}
                 </div>
                 {w.notes && (
                   <div style={{ fontSize: 13, color: "#555", marginTop: 6, lineHeight: 1.7 }}>
@@ -1317,10 +1076,7 @@ function WinsView({ onBack, onSOS }) {
 
 function CalendarView({ onBack, onSOS }) {
   const [data, setData] = useState(null);
-
-  useEffect(() => {
-    getCalendarData(30).then(setData);
-  }, []);
+  useEffect(() => { getCalendarData(30).then(setData); }, []);
 
   if (!data) {
     return (
@@ -1330,19 +1086,8 @@ function CalendarView({ onBack, onSOS }) {
     );
   }
 
-  const moodColors = {
-    good: "#27ae60",
-    meh: "#f39c12",
-    hard: "#e74c3c",
-    none: "#f0f0f0"
-  };
-
-  const moodLabels = {
-    good: "روز خوب",
-    meh: "روز متوسط",
-    hard: "روز سخت",
-    none: "بدون ثبت"
-  };
+  const moodColors = { good: "#27ae60", meh: "#f39c12", hard: "#e74c3c", none: "#f0f0f0" };
+  const moodLabels = { good: "روز خوب", meh: "روز متوسط", hard: "روز سخت", none: "بدون ثبت" };
 
   return (
     <Shell title="تقویم ۳۰ روز اخیر" onBack={onBack} showSOS onSOS={onSOS}>
@@ -1350,31 +1095,17 @@ function CalendarView({ onBack, onSOS }) {
         <div style={{ fontSize: 13, color: "#666", marginBottom: 14, lineHeight: 1.9 }}>
           هر خانه یک روز است. رنگ نشان می‌دهد حالت چطور بود.
         </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(7, 1fr)",
-            gap: 6
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
           {data.map((d, i) => (
-            <div
-              key={i}
-              style={{
-                aspectRatio: "1",
-                borderRadius: 8,
-                background: moodColors[d.mood],
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                position: "relative",
-                color: d.mood === "none" ? "#aaa" : "#fff",
-                fontSize: 11,
-                fontWeight: 600
-              }}
-            >
+            <div key={i} style={{
+              aspectRatio: "1", borderRadius: 8,
+              background: moodColors[d.mood],
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              position: "relative",
+              color: d.mood === "none" ? "#aaa" : "#fff",
+              fontSize: 11, fontWeight: 600
+            }}>
               <div>{toFa(d.dayNumber)}</div>
               {d.activations > 0 && (
                 <div style={{ fontSize: 9, opacity: 0.85, marginTop: 2 }}>
@@ -1382,37 +1113,21 @@ function CalendarView({ onBack, onSOS }) {
                 </div>
               )}
               {d.hasWin && (
-                <div style={{ position: "absolute", top: 2, left: 2, fontSize: 8 }}>
-                  ⭐
-                </div>
+                <div style={{ position: "absolute", top: 2, left: 2, fontSize: 8 }}>⭐</div>
               )}
             </div>
           ))}
         </div>
-
         <div style={{ marginTop: 16, display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "#666" }}>
           {Object.entries(moodLabels).map(([k, label]) => (
             <div key={k} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 3,
-                  background: moodColors[k],
-                  display: "inline-block"
-                }}
-              />
+              <span style={{
+                width: 12, height: 12, borderRadius: 3,
+                background: moodColors[k], display: "inline-block"
+              }} />
               <span>{label}</span>
             </div>
           ))}
-        </div>
-      </Card>
-
-      <Card style={{ marginTop: 12, background: "#f6f6f6" }}>
-        <div style={{ fontSize: 13, color: "#555", lineHeight: 1.9 }}>
-          عدد داخل هر خانه = تعداد بارهایی که آن روز الگو فعال شد.
-          <br />
-          ⭐ = روزی که حداقل یک لحظه‌ی برد داشتی.
         </div>
       </Card>
     </Shell>
@@ -1425,7 +1140,6 @@ function CalendarView({ onBack, onSOS }) {
 
 function SituationsView({ onBack, onPickSituation, onSOS }) {
   const [category, setCategory] = useState("all");
-
   const situations = getSituationsByCategory(category);
 
   return (
@@ -1436,59 +1150,31 @@ function SituationsView({ onBack, onPickSituation, onSOS }) {
         </p>
       </Card>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          marginTop: 12,
-          marginBottom: 12,
-          overflowX: "auto",
-          paddingBottom: 4
-        }}
-      >
+      <div style={{
+        display: "flex", gap: 6, marginTop: 12, marginBottom: 12,
+        overflowX: "auto", paddingBottom: 4
+      }}>
         {SITUATION_CATEGORIES.map((c) => (
-          <Chip
-            key={c.id}
-            active={category === c.id}
-            onClick={() => setCategory(c.id)}
-          >
+          <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
             {c.emoji} {c.label}
           </Chip>
         ))}
       </div>
 
       {situations.map((s) => (
-        <button
-          key={s.id}
-          onClick={() => onPickSituation(s.id)}
-          style={{
-            display: "block",
-            width: "100%",
-            textAlign: "right",
-            padding: 14,
-            marginBottom: 8,
-            borderRadius: 12,
-            border: "1px solid #eee",
-            background: "#fff",
-            cursor: "pointer",
-            fontFamily: "inherit"
-          }}
-        >
-          <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.6 }}>
-            {s.title}
-          </div>
-          <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
-            {s.categoryLabel}
-          </div>
+        <button key={s.id} onClick={() => onPickSituation(s.id)} style={{
+          display: "block", width: "100%", textAlign: "right",
+          padding: 14, marginBottom: 8, borderRadius: 12,
+          border: "1px solid #eee", background: "#fff",
+          cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.6 }}>{s.title}</div>
+          <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>{s.categoryLabel}</div>
         </button>
       ))}
 
       {situations.length === 0 && (
-        <Card>
-          <p style={{ color: "#888", fontSize: 14 }}>
-            موقعیتی در این دسته پیدا نشد.
-          </p>
-        </Card>
+        <Card><p style={{ color: "#888", fontSize: 14 }}>موقعیتی در این دسته پیدا نشد.</p></Card>
       )}
     </Shell>
   );
@@ -1516,12 +1202,8 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
   return (
     <Shell title="موقعیت" onBack={onBack} showSOS onSOS={onSOS}>
       <Card>
-        <h2 style={{ margin: "0 0 8px", fontSize: 18, lineHeight: 1.7 }}>
-          {situation.title}
-        </h2>
-        <div style={{ fontSize: 12, color: "#888" }}>
-          {situation.categoryLabel}
-        </div>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18, lineHeight: 1.7 }}>{situation.title}</h2>
+        <div style={{ fontSize: 12, color: "#888" }}>{situation.categoryLabel}</div>
       </Card>
 
       <Card style={{ marginTop: 12 }}>
@@ -1529,18 +1211,11 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
           آیا این جمله‌ها برای تو آشناست؟
         </div>
         {situation.examples.map((ex, i) => (
-          <div
-            key={i}
-            style={{
-              fontSize: 14,
-              lineHeight: 1.9,
-              padding: "8px 0",
-              borderBottom: i < situation.examples.length - 1 ? "1px dashed #eee" : "none",
-              color: "#555"
-            }}
-          >
-            «{ex}»
-          </div>
+          <div key={i} style={{
+            fontSize: 14, lineHeight: 1.9, padding: "8px 0",
+            borderBottom: i < situation.examples.length - 1 ? "1px dashed #eee" : "none",
+            color: "#555"
+          }}>«{ex}»</div>
         ))}
       </Card>
 
@@ -1549,20 +1224,11 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
           چرخه‌ی پشت این موقعیت
         </div>
         {situation.cycle.map((step, i) => (
-          <div
-            key={i}
-            style={{
-              padding: "10px 12px",
-              background: "#f6f6f6",
-              borderRadius: 8,
-              fontSize: 13,
-              lineHeight: 1.7,
-              marginBottom: 6,
-              color: "#444"
-            }}
-          >
-            {step}
-          </div>
+          <div key={i} style={{
+            padding: "10px 12px", background: "#f6f6f6",
+            borderRadius: 8, fontSize: 13, lineHeight: 1.7,
+            marginBottom: 6, color: "#444"
+          }}>{step}</div>
         ))}
       </Card>
 
@@ -1572,23 +1238,17 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {relatedSchemas.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => onPickSchema(s.id)}
-              style={{
-                padding: "12px 14px",
-                borderRadius: 10,
-                border: "1px solid #e5e5e5",
-                background: "#fff",
-                cursor: "pointer",
-                textAlign: "right",
-                fontFamily: "inherit",
-                fontSize: 14
-              }}
-            >
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>{s.name_fa}</div>
+            <button key={s.id} onClick={() => onPickSchema(s.id)} style={{
+              padding: "12px 14px", borderRadius: 10,
+              border: "1px solid #e5e5e5", background: "#fff",
+              cursor: "pointer", textAlign: "right",
+              fontFamily: "inherit", fontSize: 14
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                {s.name_plain || s.name_fa}
+              </div>
               <div style={{ fontSize: 12, color: "#888", lineHeight: 1.5 }}>
-                {s.short_description}
+                {s.one_liner || s.short_description}
               </div>
             </button>
           ))}
@@ -1596,9 +1256,7 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
       </Card>
 
       <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-          چه کار کنی؟
-        </div>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>چه کار کنی؟</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {situation.whatToDo.map((tip, i) => (
             <div key={i} style={{ fontSize: 14, lineHeight: 1.8, opacity: 0.95 }}>
@@ -1609,11 +1267,8 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
       </Card>
 
       <div style={{ marginTop: 16 }}>
-        <Btn
-          variant="ghost"
-          onClick={() => onPickSchema(relatedSchemas[0]?.id)}
-        >
-          کار روی {relatedSchemas[0]?.name_fa || "این الگو"}
+        <Btn variant="ghost" onClick={() => onPickSchema(relatedSchemas[0]?.id)}>
+          کار روی {relatedSchemas[0]?.name_plain || relatedSchemas[0]?.name_fa || "این الگو"}
         </Btn>
       </div>
     </Shell>
@@ -1636,9 +1291,7 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
     return ATTRACTION_PATTERNS
       .filter((p) => p.schemas.some((sid) => userSchemaIds.includes(sid)))
       .concat(
-        ATTRACTION_PATTERNS.filter(
-          (p) => !p.schemas.some((sid) => userSchemaIds.includes(sid))
-        )
+        ATTRACTION_PATTERNS.filter((p) => !p.schemas.some((sid) => userSchemaIds.includes(sid)))
       );
   }, [userSchemas]);
 
@@ -1655,33 +1308,23 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
           💬 چطور با طرف مقابل برخورد کنم؟
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.9, opacity: 0.85, marginBottom: 4 }}>
-          اگر طرف مقابلت این الگو را دارد،
-          روی اسمش بزن تا ببینی چطور رفتار کنی.
+          اگر طرف مقابلت این الگو را دارد، روی اسمش بزن تا ببینی چطور رفتار کنی.
         </div>
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
           {SCHEMAS.map((s) => {
             const guide = HOW_TO_RESPOND[s.id];
+            const plain = s.name_plain || guide?.plainName;
             return (
-              <button
-                key={s.id}
-                onClick={() => onPickResponseGuide(s.id)}
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,.2)",
-                  background: "transparent",
-                  color: "#fff",
-                  cursor: "pointer",
-                  textAlign: "right",
-                  fontFamily: "inherit"
-                }}
-              >
+              <button key={s.id} onClick={() => onPickResponseGuide(s.id)} style={{
+                padding: "12px 14px", borderRadius: 10,
+                border: "1px solid rgba(255,255,255,.2)",
+                background: "transparent", color: "#fff",
+                cursor: "pointer", textAlign: "right", fontFamily: "inherit"
+              }}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>
-                  {guide?.plainName || s.name_fa}
+                  {plain || s.name_fa}
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.6 }}>
-                  {s.name_fa}
-                </div>
+                <div style={{ fontSize: 11, opacity: 0.6 }}>{s.name_fa}</div>
               </button>
             );
           })}
@@ -1696,25 +1339,13 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
       </p>
 
       {relevantPatterns.map((p) => (
-        <button
-          key={p.id}
-          onClick={() => onPickPattern(p.id)}
-          style={{
-            display: "block",
-            width: "100%",
-            textAlign: "right",
-            padding: 16,
-            marginBottom: 10,
-            borderRadius: 12,
-            border: "1px solid #eee",
-            background: "#fff",
-            cursor: "pointer",
-            fontFamily: "inherit"
-          }}
-        >
-          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
-            {p.shortName}
-          </div>
+        <button key={p.id} onClick={() => onPickPattern(p.id)} style={{
+          display: "block", width: "100%", textAlign: "right",
+          padding: 16, marginBottom: 10, borderRadius: 12,
+          border: "1px solid #eee", background: "#fff",
+          cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>{p.shortName}</div>
           <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.6, marginBottom: 8 }}>
             {p.boxTitle || p.title}
           </div>
@@ -1749,11 +1380,9 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
   return (
     <Shell title={pattern.shortName} onBack={onBack} showSOS onSOS={onSOS}>
       <Card>
-        <h2 style={{ margin: "0 0 8px", fontSize: 18, lineHeight: 1.7 }}>
-          {pattern.title}
-        </h2>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18, lineHeight: 1.7 }}>{pattern.title}</h2>
         <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
-          {schemas.map((s) => s.name_fa).join(" + ")}
+          {schemas.map((s) => s.name_plain || s.name_fa).join(" + ")}
         </div>
         <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
           {pattern.boxDescription}
@@ -1765,13 +1394,11 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#1e40af" }}>
             🧸 احتمالاً در کودکی این‌ها را تجربه کرده
           </div>
-          {Array.isArray(pattern.childhood) ? (
-            pattern.childhood.map((c, i) => (
-              <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af", marginBottom: 8 }}>
-                • {c}
-              </div>
-            ))
-          ) : (
+          {Array.isArray(pattern.childhood) ? pattern.childhood.map((c, i) => (
+            <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af", marginBottom: 8 }}>
+              • {c}
+            </div>
+          )) : (
             <div style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af" }}>
               {pattern.childhood}
             </div>
@@ -1784,9 +1411,7 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
             📖 در زندگی واقعی چطور است؟
           </div>
-          <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
-            {pattern.realLife}
-          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>{pattern.realLife}</div>
         </Card>
       )}
 
@@ -1794,9 +1419,7 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
           🔁 معمولاً چطور پیش می‌رود؟
         </div>
-        <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>
-          {pattern.typical}
-        </div>
+        <div style={{ fontSize: 14, lineHeight: 1.9, color: "#555" }}>{pattern.typical}</div>
       </Card>
 
       <Card style={{ marginTop: 12, background: "#fef3f2" }}>
@@ -1855,6 +1478,7 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
 function ResponseGuideView({ schemaId, onBack, onSOS }) {
   const guide = getResponseGuide(schemaId);
   const schema = SCHEMAS.find((s) => s.id === schemaId);
+  const plain = schema?.name_plain || guide?.plainName;
 
   if (!guide) {
     return (
@@ -1865,14 +1489,10 @@ function ResponseGuideView({ schemaId, onBack, onSOS }) {
   }
 
   return (
-    <Shell title={guide.plainName || guide.name} onBack={onBack} showSOS onSOS={onSOS}>
+    <Shell title={plain || guide.name} onBack={onBack} showSOS onSOS={onSOS}>
       <Card>
-        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>
-          {guide.plainName || guide.name}
-        </h2>
-        <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
-          {guide.name}
-        </div>
+        <h2 style={{ margin: "0 0 8px", fontSize: 18 }}>{plain || guide.name}</h2>
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>{guide.name}</div>
         <div style={{ fontSize: 14, color: "#555", lineHeight: 1.9 }}>
           {guide.plainDescription}
         </div>
@@ -1903,12 +1523,8 @@ function ResponseGuideView({ schemaId, onBack, onSOS }) {
       )}
 
       <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
-        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
-          🌟 قاعده طلایی
-        </div>
-        <div style={{ fontSize: 16, lineHeight: 1.9, fontWeight: 600 }}>
-          {guide.goldenRule}
-        </div>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>🌟 قاعده طلایی</div>
+        <div style={{ fontSize: 16, lineHeight: 1.9, fontWeight: 600 }}>{guide.goldenRule}</div>
       </Card>
 
       <Card style={{ marginTop: 12, background: "#eef7ee" }}>
@@ -1966,30 +1582,15 @@ function BreakCycleView({ onBack, onSOS }) {
       {BREAK_CYCLE_GUIDE.steps.map((s) => (
         <Card key={s.num} style={{ marginTop: 12 }}>
           <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                background: "#111",
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: 16,
-                flexShrink: 0
-              }}
-            >
-              {toFa(s.num)}
-            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "#111", color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 700, fontSize: 16, flexShrink: 0
+            }}>{toFa(s.num)}</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
-                {s.title}
-              </div>
-              <div style={{ fontSize: 14, color: "#555", lineHeight: 1.8 }}>
-                {s.desc}
-              </div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{s.title}</div>
+              <div style={{ fontSize: 14, color: "#555", lineHeight: 1.8 }}>{s.desc}</div>
             </div>
           </div>
         </Card>
@@ -2010,10 +1611,7 @@ function BreakCycleView({ onBack, onSOS }) {
 
 function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) {
   const [summary, setSummary] = useState(null);
-
-  useEffect(() => {
-    buildProgressSummary(schemaId).then(setSummary);
-  }, [schemaId]);
+  useEffect(() => { buildProgressSummary(schemaId).then(setSummary); }, [schemaId]);
 
   if (!summary) {
     return (
@@ -2046,20 +1644,12 @@ function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) 
         </div>
 
         {winsCount > 0 && (
-          <button
-            onClick={onWins}
-            style={{
-              marginTop: 14,
-              width: "100%",
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid #ffe0b2",
-              background: "#fff8e1",
-              cursor: "pointer",
-              textAlign: "right",
-              fontFamily: "inherit"
-            }}
-          >
+          <button onClick={onWins} style={{
+            marginTop: 14, width: "100%", padding: 12,
+            borderRadius: 10, border: "1px solid #ffe0b2",
+            background: "#fff8e1", cursor: "pointer",
+            textAlign: "right", fontFamily: "inherit"
+          }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: "#e65100" }}>
               ⭐ {toFa(winsCount)} لحظه‌ی برد
             </span>
@@ -2080,7 +1670,6 @@ function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) 
             <ProgressBar value={reactions.old} max={Math.max(10, total)} color="#e74c3c" />
           </div>
         </div>
-
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
             <span>مکث</span>
@@ -2090,7 +1679,6 @@ function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) 
             <ProgressBar value={reactions.paused} max={Math.max(10, total)} color="#f39c12" />
           </div>
         </div>
-
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
             <span>پاسخ جدید</span>
@@ -2103,12 +1691,8 @@ function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) 
       </Card>
 
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button onClick={onCalendar} style={styles.dashBtn}>
-          📅 تقویم
-        </button>
-        <button onClick={onWins} style={styles.dashBtn}>
-          ⭐ لحظه‌های من
-        </button>
+        <button onClick={onCalendar} style={styles.dashBtn}>📅 تقویم</button>
+        <button onClick={onWins} style={styles.dashBtn}>⭐ لحظه‌های من</button>
       </div>
 
       {(weekly.lastWeek.total > 0 || weekly.thisWeek.total > 0) && (
@@ -2179,11 +1763,7 @@ function QuickCheckView({ profiles, onDone, onBack }) {
   const [pickedSchema, setPickedSchema] = useState(profiles[0]?.schemaId || null);
 
   const save = async (reaction) => {
-    await recordCycle({
-      schemaId: pickedSchema,
-      reactionType: reaction,
-      notes: "ثبت سریع"
-    });
+    await recordCycle({ schemaId: pickedSchema, reactionType: reaction, notes: "ثبت سریع" });
     setPhase("saved");
   };
 
@@ -2196,14 +1776,10 @@ function QuickCheckView({ profiles, onDone, onBack }) {
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {profiles.map((p) => (
-              <button
-                key={p.schemaId}
-                onClick={() => {
-                  setPickedSchema(p.schemaId);
-                  setPhase("breathe");
-                }}
-                style={styles.quickOptBtn}
-              >
+              <button key={p.schemaId} onClick={() => {
+                setPickedSchema(p.schemaId);
+                setPhase("breathe");
+              }} style={styles.quickOptBtn}>
                 {p.name}
               </button>
             ))}
@@ -2219,17 +1795,13 @@ function QuickCheckView({ profiles, onDone, onBack }) {
         <Card style={{ textAlign: "center", padding: 30 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>⏸️</div>
           <p style={{ fontSize: 16, lineHeight: 1.9, margin: "0 0 20px" }}>
-            ۱۰ ثانیه هیچ کاری نکن.
-            <br />
-            نفس بکش.
+            ۱۰ ثانیه هیچ کاری نکن.<br />نفس بکش.
           </p>
           <p style={{ fontSize: 14, color: "#666", lineHeight: 1.9 }}>
-            الان چه چیزی را واقعاً می‌دانم؟
-            <br />
+            الان چه چیزی را واقعاً می‌دانم؟<br />
             و چه چیزی را فقط حدس می‌زنم؟
           </p>
         </Card>
-
         <div style={{ marginTop: 16 }}>
           <Btn onClick={() => setPhase("action")}>ادامه</Btn>
         </div>
@@ -2265,9 +1837,7 @@ function QuickCheckView({ profiles, onDone, onBack }) {
       <Shell title="ثبت شد" onBack={onDone}>
         <Card style={{ textAlign: "center", padding: 30 }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>✓</div>
-          <p style={{ fontSize: 16, lineHeight: 1.9 }}>
-            ثبت شد. این خودش یک قدم است.
-          </p>
+          <p style={{ fontSize: 16, lineHeight: 1.9 }}>ثبت شد. این خودش یک قدم است.</p>
         </Card>
         <div style={{ marginTop: 16 }}>
           <Btn onClick={onDone}>بازگشت</Btn>
@@ -2300,20 +1870,20 @@ export default function App() {
   useEffect(() => {
     Promise.all([loadProfile(), hasCheckedInToday()]).then(([p, checkedIn]) => {
       if (p) setAnalysis(p);
-      if (!checkedIn) {
-        setView("checkin");
-      } else {
-        setView(p ? "profile" : "welcome");
-      }
+      if (!checkedIn) setView("checkin");
+      else setView(p ? "profile" : "welcome");
     });
   }, []);
 
   const profiles = useMemo(() => {
     if (!analysis) return [];
-    return [...analysis.high, ...analysis.medium].map((r) => ({
-      schemaId: r.schemaId,
-      name: r.name
-    }));
+    return [...analysis.high, ...analysis.medium].map((r) => {
+      const schema = SCHEMAS.find((s) => s.id === r.schemaId);
+      return {
+        schemaId: r.schemaId,
+        name: schema?.name_plain || r.name
+      };
+    });
   }, [analysis]);
 
   const go = (v) => setView(v);
@@ -2350,271 +1920,172 @@ export default function App() {
 
   if (view === "checkin") {
     return (
-      <CheckInView
-        analysis={analysis}
+      <CheckInView analysis={analysis}
         onDone={() => go(analysis ? "profile" : "welcome")}
-        onSkip={() => go(analysis ? "profile" : "welcome")}
-      />
+        onSkip={() => go(analysis ? "profile" : "welcome")} />
     );
   }
 
   if (view === "sos") {
-    return (
-      <SOSView
-        onBack={() => go(returnTo)}
-        onBetter={() => go(returnTo)}
-      />
-    );
+    return <SOSView onBack={() => go(returnTo)} onBetter={() => go(returnTo)} />;
   }
 
   if (view === "welcome") {
     return (
-      <WelcomeView
-        hasProfile={!!analysis}
-        onStart={() => go("ysq")}
-        onSkipToProfile={() => go("profile")}
-        phrase={todayPhrase}
-        onSOS={openSOS}
+      <WelcomeView hasProfile={!!analysis}
+        onStart={() => go("ysq")} onSkipToProfile={() => go("profile")}
+        phrase={todayPhrase} onSOS={openSOS}
         onSituations={() => go("situations")}
-        onRelationships={() => go("relationships")}
-      />
+        onRelationships={() => go("relationships")} />
     );
   }
 
   if (view === "ysq") {
     return (
-      <YSQView
-        onBack={() => go("welcome")}
+      <YSQView onBack={() => go("welcome")}
         onDone={async (answers, result) => {
           const payload = buildResultPayload(answers);
           console.log("YSQ payload:", payload);
           await saveProfile(result);
           setAnalysis(result);
           go("profile");
-        }}
-      />
+        }} />
     );
   }
 
   if (view === "profile") {
     return (
-      <ProfileView
-        analysis={analysis}
-        onBack={() => go("welcome")}
-        onRetake={() => go("ysq")}
-        onWins={() => go("wins")}
-        onCalendar={() => go("calendar")}
-        onSOS={openSOS}
-        onSituations={() => go("situations")}
+      <ProfileView analysis={analysis}
+        onBack={() => go("welcome")} onRetake={() => go("ysq")}
+        onWins={() => go("wins")} onCalendar={() => go("calendar")}
+        onSOS={openSOS} onSituations={() => go("situations")}
         onRelationships={() => go("relationships")}
-        onPickSchema={(id) => {
-          setActiveSchemaId(id);
-          go("cycle");
-        }}
-        onPickOrigin={(id) => openOrigin(id, "profile")}
-      />
+        onPickSchema={(id) => { setActiveSchemaId(id); go("cycle"); }}
+        onPickOrigin={(id) => openOrigin(id, "profile")} />
     );
   }
 
   if (view === "origin" && originSchemaId) {
-    return (
-      <OriginView
-        schemaId={originSchemaId}
-        onBack={() => go(returnFromOrigin)}
-        onSOS={openSOS}
-      />
-    );
+    return <OriginView schemaId={originSchemaId}
+      onBack={() => go(returnFromOrigin)} onSOS={openSOS} />;
   }
 
   if (view === "cycle" && activeSchemaId) {
     return (
-      <CycleView
-        schemaId={activeSchemaId}
+      <CycleView schemaId={activeSchemaId}
         onBack={() => go("profile")}
-        onDone={(sel) => {
-          setSelection(sel);
-          go("cycle_summary");
-        }}
-      />
+        onDone={(sel) => { setSelection(sel); go("cycle_summary"); }} />
     );
   }
 
   if (view === "cycle_summary" && selection) {
     return (
-      <CycleSummaryView
-        schemaId={activeSchemaId}
-        selection={selection}
-        onBack={() => go("cycle")}
-        onContinue={() => go("exercise")}
-        onViewOrigin={() => openOrigin(activeSchemaId, "cycle_summary")}
-      />
+      <CycleSummaryView schemaId={activeSchemaId} selection={selection}
+        onBack={() => go("cycle")} onContinue={() => go("exercise")}
+        onViewOrigin={() => openOrigin(activeSchemaId, "cycle_summary")} />
     );
   }
 
   if (view === "exercise") {
     return (
-      <ExerciseView
-        schemaId={activeSchemaId}
-        selection={selection}
+      <ExerciseView schemaId={activeSchemaId} selection={selection}
         onBack={() => go("cycle_summary")}
-        onDone={(record) => {
-          setExerciseRecord(record || null);
-          go("mission");
-        }}
-      />
+        onDone={(record) => { setExerciseRecord(record || null); go("mission"); }} />
     );
   }
 
   if (view === "mission") {
     return (
-      <MissionView
-        schemaId={activeSchemaId}
+      <MissionView schemaId={activeSchemaId}
         onBack={() => go("exercise")}
-        onDone={(mission) => {
-          setMissionRecord(mission);
-          go("log");
-        }}
-      />
+        onDone={(mission) => { setMissionRecord(mission); go("log"); }} />
     );
   }
 
   if (view === "log") {
     return (
-      <LogResultView
-        schemaId={activeSchemaId}
-        selection={selection}
+      <LogResultView schemaId={activeSchemaId} selection={selection}
         onBack={() => go("mission")}
         onDone={async (log) => {
           await recordCycle({
-            schemaId: activeSchemaId,
-            ...selection,
-            ...log,
+            schemaId: activeSchemaId, ...selection, ...log,
             exerciseId: exerciseRecord?.exerciseId || null,
             exerciseResult: exerciseRecord?.result || null,
             missionId: missionRecord?.id || null
           });
           go("progress");
-        }}
-      />
+        }} />
     );
   }
 
   if (view === "progress") {
     return (
-      <ProgressView
-        schemaId={activeSchemaId}
-        onBack={() => go("profile")}
-        onQuick={() => go("quick")}
-        onWins={() => go("wins")}
-        onCalendar={() => go("calendar")}
-        onSOS={openSOS}
-      />
+      <ProgressView schemaId={activeSchemaId}
+        onBack={() => go("profile")} onQuick={() => go("quick")}
+        onWins={() => go("wins")} onCalendar={() => go("calendar")}
+        onSOS={openSOS} />
     );
   }
 
   if (view === "wins") {
-    return (
-      <WinsView
-        onBack={() => go(analysis ? "profile" : "welcome")}
-        onSOS={openSOS}
-      />
-    );
+    return <WinsView onBack={() => go(analysis ? "profile" : "welcome")} onSOS={openSOS} />;
   }
 
   if (view === "calendar") {
-    return (
-      <CalendarView
-        onBack={() => go(analysis ? "profile" : "welcome")}
-        onSOS={openSOS}
-      />
-    );
+    return <CalendarView onBack={() => go(analysis ? "profile" : "welcome")} onSOS={openSOS} />;
   }
 
   if (view === "situations") {
     return (
-      <SituationsView
-        onBack={() => go(analysis ? "profile" : "welcome")}
+      <SituationsView onBack={() => go(analysis ? "profile" : "welcome")}
         onSOS={openSOS}
-        onPickSituation={(id) => {
-          setActiveSituationId(id);
-          go("situation_detail");
-        }}
-      />
+        onPickSituation={(id) => { setActiveSituationId(id); go("situation_detail"); }} />
     );
   }
 
   if (view === "situation_detail" && activeSituationId) {
     return (
-      <SituationDetailView
-        situationId={activeSituationId}
-        onBack={() => go("situations")}
-        onSOS={openSOS}
-        onPickSchema={(id) => {
-          setActiveSchemaId(id);
-          go("cycle");
-        }}
-      />
+      <SituationDetailView situationId={activeSituationId}
+        onBack={() => go("situations")} onSOS={openSOS}
+        onPickSchema={(id) => { setActiveSchemaId(id); go("cycle"); }} />
     );
   }
 
   if (view === "relationships") {
     return (
-      <RelationshipsView
-        analysis={analysis}
-        onBack={() => go(analysis ? "profile" : "welcome")}
-        onSOS={openSOS}
-        onPickPattern={(id) => {
-          setActivePatternId(id);
-          go("relationship_detail");
-        }}
-        onPickResponseGuide={(id) => {
-          setActiveGuideSchemaId(id);
-          go("response_guide");
-        }}
-      />
+      <RelationshipsView analysis={analysis}
+        onBack={() => go(analysis ? "profile" : "welcome")} onSOS={openSOS}
+        onPickPattern={(id) => { setActivePatternId(id); go("relationship_detail"); }}
+        onPickResponseGuide={(id) => { setActiveGuideSchemaId(id); go("response_guide"); }} />
     );
   }
 
   if (view === "relationship_detail" && activePatternId) {
     return (
-      <RelationshipDetailView
-        patternId={activePatternId}
-        onBack={() => go("relationships")}
-        onSOS={openSOS}
-      />
+      <RelationshipDetailView patternId={activePatternId}
+        onBack={() => go("relationships")} onSOS={openSOS} />
     );
   }
 
   if (view === "response_guide" && activeGuideSchemaId) {
     return (
-      <ResponseGuideView
-        schemaId={activeGuideSchemaId}
-        onBack={() => go("relationships")}
-        onSOS={openSOS}
-      />
+      <ResponseGuideView schemaId={activeGuideSchemaId}
+        onBack={() => go("relationships")} onSOS={openSOS} />
     );
   }
 
   if (view === "break_cycle") {
-    return (
-      <BreakCycleView
-        onBack={() => go(analysis ? "profile" : "welcome")}
-        onSOS={openSOS}
-      />
-    );
+    return <BreakCycleView onBack={() => go(analysis ? "profile" : "welcome")} onSOS={openSOS} />;
   }
 
   if (view === "quick") {
     return (
       <QuickCheckView
-        profiles={
-          profiles.length
-            ? profiles
-            : SCHEMAS.slice(0, 5).map((s) => ({ schemaId: s.id, name: s.name_fa }))
-        }
+        profiles={profiles.length ? profiles : SCHEMAS.slice(0, 5).map((s) => ({
+          schemaId: s.id, name: s.name_plain || s.name_fa
+        }))}
         onBack={() => go("welcome")}
-        onDone={() => go("progress")}
-      />
+        onDone={() => go("progress")} />
     );
   }
 
@@ -2627,156 +2098,69 @@ export default function App() {
 
 const styles = {
   app: {
-    minHeight: "100vh",
-    background: "#fafafa",
+    minHeight: "100vh", background: "#fafafa",
     fontFamily: "system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif",
-    color: "#222",
-    paddingBottom: 80,
-    position: "relative"
+    color: "#222", paddingBottom: 80, position: "relative"
   },
   header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "14px 16px",
-    background: "#fff",
-    borderBottom: "1px solid #eee",
-    position: "sticky",
-    top: 0,
-    zIndex: 10
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    padding: "14px 16px", background: "#fff",
+    borderBottom: "1px solid #eee", position: "sticky", top: 0, zIndex: 10
   },
-  headerTitle: {
-    fontWeight: 700,
-    fontSize: 15
-  },
+  headerTitle: { fontWeight: 700, fontSize: 15 },
   backBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    border: "1px solid #eee",
-    background: "#fff",
-    fontSize: 16,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 32, height: 32, borderRadius: "50%",
+    border: "1px solid #eee", background: "#fff",
+    fontSize: 16, cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center",
     fontFamily: "inherit"
   },
   sosHeaderBtn: {
-    width: 40,
-    height: 32,
-    borderRadius: 8,
-    border: "1px solid #e74c3c",
-    background: "#fff",
-    color: "#e74c3c",
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-    fontFamily: "inherit"
+    width: 40, height: 32, borderRadius: 8,
+    border: "1px solid #e74c3c", background: "#fff",
+    color: "#e74c3c", fontSize: 12, fontWeight: 700,
+    cursor: "pointer", fontFamily: "inherit"
   },
-  main: {
-    maxWidth: 520,
-    margin: "0 auto",
-    padding: 16
-  },
+  main: { maxWidth: 520, margin: "0 auto", padding: 16 },
   card: {
-    padding: 16,
-    borderRadius: 14,
-    background: "#fff",
-    border: "1px solid #f0f0f0"
+    padding: 16, borderRadius: 14,
+    background: "#fff", border: "1px solid #f0f0f0"
   },
   btn: {
-    width: "100%",
-    padding: "14px 20px",
-    borderRadius: 12,
-    border: "none",
-    fontSize: 15,
-    fontWeight: 600,
-    fontFamily: "inherit"
+    width: "100%", padding: "14px 20px", borderRadius: 12,
+    border: "none", fontSize: 15, fontWeight: 600, fontFamily: "inherit"
   },
-  btnPrimary: {
-    background: "#111",
-    color: "#fff"
-  },
-  btnGhost: {
-    background: "#fff",
-    color: "#333",
-    border: "1px solid #e5e5e5"
-  },
-  btnDanger: {
-    background: "#e74c3c",
-    color: "#fff"
-  },
+  btnPrimary: { background: "#111", color: "#fff" },
+  btnGhost: { background: "#fff", color: "#333", border: "1px solid #e5e5e5" },
+  btnDanger: { background: "#e74c3c", color: "#fff" },
   quickBtn: {
-    position: "fixed",
-    bottom: 20,
-    left: "50%",
+    position: "fixed", bottom: 20, left: "50%",
     transform: "translateX(-50%)",
-    padding: "14px 24px",
-    borderRadius: 999,
-    background: "#111",
-    color: "#fff",
-    border: "none",
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: "pointer",
-    boxShadow: "0 6px 20px rgba(0,0,0,.2)",
-    fontFamily: "inherit"
+    padding: "14px 24px", borderRadius: 999,
+    background: "#111", color: "#fff", border: "none",
+    fontSize: 14, fontWeight: 600, cursor: "pointer",
+    boxShadow: "0 6px 20px rgba(0,0,0,.2)", fontFamily: "inherit"
   },
   textarea: {
-    width: "100%",
-    padding: 10,
-    borderRadius: 8,
-    border: "1px solid #ddd",
-    fontFamily: "inherit",
-    fontSize: 13,
-    resize: "vertical",
-    boxSizing: "border-box"
+    width: "100%", padding: 10, borderRadius: 8,
+    border: "1px solid #ddd", fontFamily: "inherit",
+    fontSize: 13, resize: "vertical", boxSizing: "border-box"
   },
   moodBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: 14,
-    padding: "14px 18px",
-    borderRadius: 12,
-    border: "1px solid #e5e5e5",
-    background: "#fff",
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontSize: 15
+    display: "flex", alignItems: "center", gap: 14,
+    padding: "14px 18px", borderRadius: 12,
+    border: "1px solid #e5e5e5", background: "#fff",
+    cursor: "pointer", fontFamily: "inherit", fontSize: 15
   },
   dashBtn: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    border: "1px solid #e5e5e5",
-    background: "#fff",
-    fontSize: 14,
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontWeight: 600
-  },
-  schemaBtn: {
-    display: "block",
-    width: "100%",
-    textAlign: "right",
-    padding: 14,
-    marginBottom: 8,
-    borderRadius: 12,
-    border: "1px solid #eee",
-    background: "#fff",
-    cursor: "pointer",
-    fontFamily: "inherit"
+    flex: 1, padding: 14, borderRadius: 12,
+    border: "1px solid #e5e5e5", background: "#fff",
+    fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 600
   },
   quickOptBtn: {
-    padding: "12px 14px",
-    borderRadius: 10,
-    border: "1px solid #e5e5e5",
-    background: "#fff",
-    fontSize: 14,
-    textAlign: "right",
-    cursor: "pointer",
-    fontFamily: "inherit"
+    padding: "12px 14px", borderRadius: 10,
+    border: "1px solid #e5e5e5", background: "#fff",
+    fontSize: 14, textAlign: "right", cursor: "pointer", fontFamily: "inherit"
   },
   sosFull: {
     minHeight: "100vh",
@@ -2785,18 +2169,11 @@ const styles = {
     fontFamily: "system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif"
   },
   breathCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: "50%",
+    width: 200, height: 200, borderRadius: "50%",
     border: "2px solid rgba(255,255,255,.2)",
     margin: "0 auto",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(255,255,255,.05)",
-    transition: "all 1s ease"
+    display: "flex", alignItems: "center", justifyContent: "center",
+    background: "rgba(255,255,255,.05)", transition: "all 1s ease"
   },
-  breathInner: {
-    textAlign: "center"
-  }
+  breathInner: { textAlign: "center" }
 };
