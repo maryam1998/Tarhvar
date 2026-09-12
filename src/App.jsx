@@ -1,6 +1,6 @@
 // App.jsx
-// نسخه 8.0 — اسم‌های ساده + راهنمای بعد از ریشه + مأموریت‌های بهتر
-// بدون AI
+// نسخه 9.0 — با خودگویی در موقعیت‌ها + همه قابلیت‌های قبلی
+// بدون AI — کاملاً Rule-Based
 
 import React, { useState, useEffect, useMemo } from "react";
 
@@ -19,13 +19,12 @@ import { getOrigin } from "./ORIGINS";
 import { PLAIN_NAMES, NEXT_STEPS, getPlainName, getOneLiner, getNextSteps } from "./SIMPLE_LANGUAGE";
 
 /* =========================================================
- * ۰. ثبت برچسب‌ها + اضافه کردن اسم ساده به schemaها
+ * ۰. ثبت برچسب‌ها + اسم ساده
  * ========================================================= */
 
 const LABELS = {};
 for (const s of SCHEMAS) {
   LABELS[s.id] = s.name_fa;
-  // اضافه کردن اسم ساده به هر schema
   const plain = PLAIN_NAMES[s.id];
   if (plain) {
     s.name_plain = plain.plain;
@@ -187,7 +186,6 @@ function OriginView({ schemaId, onBack, onSOS }) {
         <div style={{ fontSize: 14, lineHeight: 2 }}>{origin.gentleReminder}</div>
       </Card>
 
-      {/* 🕊️ حالا باید چکار کنی */}
       {nextSteps.length > 0 && (
         <Card style={{ marginTop: 12, background: "#eef7ee" }}>
           <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: "#1b5e20" }}>
@@ -552,7 +550,7 @@ function YSQView({ onDone, onBack }) {
 }
 
 /* =========================================================
- * ۷. صفحه پروفایل — با اسم ساده
+ * ۷. صفحه پروفایل
  * ========================================================= */
 
 function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, onWins, onCalendar, onSOS, onSituations, onRelationships }) {
@@ -822,7 +820,7 @@ function ExerciseView({ schemaId, selection, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۱. صفحه مأموریت — با نمایش نوع مأموریت
+ * ۱۱. صفحه مأموریت
  * ========================================================= */
 
 function MissionView({ schemaId, onDone, onBack }) {
@@ -1181,7 +1179,7 @@ function SituationsView({ onBack, onPickSituation, onSOS }) {
 }
 
 /* =========================================================
- * ۱۶. جزئیات موقعیت
+ * ۱۶. جزئیات موقعیت — با خودگویی
  * ========================================================= */
 
 function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
@@ -1265,6 +1263,32 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
           ))}
         </div>
       </Card>
+
+      {/* 🗣️ به خودت این‌ها را بگو */}
+      {situation.selfTalk && situation.selfTalk.length > 0 && (
+        <Card style={{ marginTop: 12, background: "#eef4ff" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#1e40af" }}>
+            🗣️ به خودت این‌ها را بگو
+          </div>
+          {situation.selfTalk.map((phrase, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: 14,
+                lineHeight: 1.9,
+                color: "#1e40af",
+                marginBottom: 8,
+                padding: "10px 14px",
+                background: "#fff",
+                borderRadius: 8,
+                borderRight: "3px solid #3b82f6"
+              }}
+            >
+              «{phrase}»
+            </div>
+          ))}
+        </Card>
+      )}
 
       <div style={{ marginTop: 16 }}>
         <Btn variant="ghost" onClick={() => onPickSchema(relatedSchemas[0]?.id)}>
