@@ -1,5 +1,5 @@
 // App.jsx
-// نسخه 9.0 — با خودگویی در موقعیت‌ها + همه قابلیت‌های قبلی
+// نسخه 10.0 — با چرخه‌های زندگی
 // بدون AI — کاملاً Rule-Based
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -17,6 +17,12 @@ import { SITUATIONS, SITUATION_CATEGORIES, getSituationsByCategory, getSituation
 import { ATTRACTION_PATTERNS, HOW_TO_RESPOND, BREAK_CYCLE_GUIDE, getResponseGuide } from "./RELATIONSHIPS";
 import { getOrigin } from "./ORIGINS";
 import { PLAIN_NAMES, NEXT_STEPS, getPlainName, getOneLiner, getNextSteps } from "./SIMPLE_LANGUAGE";
+import {
+  LIFE_CYCLES,
+  LIFE_CYCLE_CATEGORIES,
+  getLifeCycle,
+  getLifeCyclesByCategory
+} from "./LIFE_CYCLES";
 
 /* =========================================================
  * ۰. ثبت برچسب‌ها + اسم ساده
@@ -215,7 +221,240 @@ function OriginView({ schemaId, onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۳. چک‌این روزانه
+ * ۳. صفحه چرخه‌های زندگی (لیست)
+ * ========================================================= */
+
+function LifeCyclesView({ onBack, onPickCycle, onSOS }) {
+  const [category, setCategory] = useState("all");
+  const cycles = getLifeCyclesByCategory(category);
+
+  return (
+    <Shell title="چرخه‌های زندگی" onBack={onBack} showSOS onSOS={onSOS}>
+      <Card>
+        <p style={{ margin: 0, fontSize: 14, color: "#666", lineHeight: 1.9 }}>
+          این‌ها الگوهای عمیق‌تری هستند که از ترکیب چند طرحواره ساخته می‌شوند.
+          <br />
+          شاید یکی از این‌ها را در زندگی‌ات دیده باشی.
+        </p>
+      </Card>
+
+      <div style={{
+        display: "flex", gap: 6, marginTop: 12, marginBottom: 12,
+        overflowX: "auto", paddingBottom: 4
+      }}>
+        {LIFE_CYCLE_CATEGORIES.map((c) => (
+          <Chip key={c.id} active={category === c.id} onClick={() => setCategory(c.id)}>
+            {c.emoji} {c.label}
+          </Chip>
+        ))}
+      </div>
+
+      {cycles.map((cycle) => (
+        <button key={cycle.id} onClick={() => onPickCycle(cycle.id)} style={{
+          display: "block", width: "100%", textAlign: "right",
+          padding: 16, marginBottom: 10, borderRadius: 12,
+          border: "1px solid #eee", background: "#fff",
+          cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
+            {cycle.categoryLabel}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.6, marginBottom: 8 }}>
+            {cycle.title}
+          </div>
+          <div style={{ fontSize: 13, color: "#666", lineHeight: 1.7 }}>
+            {cycle.shortDescription}
+          </div>
+        </button>
+      ))}
+
+      {cycles.length === 0 && (
+        <Card>
+          <p style={{ color: "#888", fontSize: 14 }}>چرخه‌ای در این دسته پیدا نشد.</p>
+        </Card>
+      )}
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۴. جزئیات چرخه زندگی
+ * ========================================================= */
+
+function LifeCycleDetailView({ cycleId, onBack, onPickSchema, onSOS }) {
+  const cycle = getLifeCycle(cycleId);
+
+  if (!cycle) {
+    return (
+      <Shell title="خطا" onBack={onBack} showSOS onSOS={onSOS}>
+        <Card><p>چرخه پیدا نشد.</p></Card>
+      </Shell>
+    );
+  }
+
+  const relatedSchemas = (cycle.schemas || [])
+    .map((id) => SCHEMAS.find((s) => s.id === id))
+    .filter(Boolean);
+
+  return (
+    <Shell title={cycle.categoryLabel} onBack={onBack} showSOS onSOS={onSOS}>
+      {/* عنوان */}
+      <Card>
+        <h2 style={{ margin: "0 0 10px", fontSize: 18, lineHeight: 1.7 }}>
+          {cycle.title}
+        </h2>
+        <div style={{ fontSize: 14, color: "#555", lineHeight: 1.9 }}>
+          {cycle.shortDescription}
+        </div>
+      </Card>
+
+      {/* آیا آشناست؟ */}
+      {cycle.examples && cycle.examples.length > 0 && (
+        <Card style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+            آیا این جمله‌ها برای تو آشناست؟
+          </div>
+          {cycle.examples.map((ex, i) => (
+            <div key={i} style={{
+              fontSize: 14, lineHeight: 1.9, padding: "8px 0",
+              borderBottom: i < cycle.examples.length - 1 ? "1px dashed #eee" : "none",
+              color: "#555"
+            }}>«{ex}»</div>
+          ))}
+        </Card>
+      )}
+
+      {/* ریشه کودکی */}
+      {cycle.childhood && cycle.childhood.length > 0 && (
+        <Card style={{ marginTop: 12, background: "#eef4ff" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#1e40af" }}>
+            🧸 احتمالاً در کودکی این‌ها را تجربه کرده
+          </div>
+          {cycle.childhood.map((c, i) => (
+            <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#1e40af", marginBottom: 8 }}>
+              • {c}
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* چرخه */}
+      {cycle.cycle && cycle.cycle.length > 0 && (
+        <Card style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
+            🔁 چرخه‌ی این الگو
+          </div>
+          {cycle.cycle.map((step, i) => (
+            <div key={i} style={{
+              padding: "10px 12px", background: "#f6f6f6",
+              borderRadius: 8, fontSize: 13, lineHeight: 1.7,
+              marginBottom: 6, color: "#444"
+            }}>{step}</div>
+          ))}
+        </Card>
+      )}
+
+      {/* چرا تکرار می‌شود */}
+      {cycle.whyItRepeats && cycle.whyItRepeats.length > 0 && (
+        <Card style={{ marginTop: 12, background: "#fef3f2" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: "#c0392b" }}>
+            🤔 چرا این چرخه تکرار می‌شود؟
+          </div>
+          {cycle.whyItRepeats.map((w, i) => (
+            <div key={i} style={{ fontSize: 14, lineHeight: 1.9, color: "#555", marginBottom: 6 }}>
+              • {w}
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* طرحواره‌های مرتبط */}
+      {relatedSchemas.length > 0 && (
+        <Card style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
+            این چرخه به این الگوها مربوط است
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {relatedSchemas.map((s) => (
+              <button key={s.id} onClick={() => onPickSchema(s.id)} style={{
+                padding: "12px 14px", borderRadius: 10,
+                border: "1px solid #e5e5e5", background: "#fff",
+                cursor: "pointer", textAlign: "right",
+                fontFamily: "inherit", fontSize: 14
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  {s.name_plain || s.name_fa}
+                </div>
+                <div style={{ fontSize: 12, color: "#888", lineHeight: 1.5 }}>
+                  {s.one_liner || s.short_description}
+                </div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* حالا چه کار کنی */}
+      {cycle.whatToDo && cycle.whatToDo.length > 0 && (
+        <Card style={{ marginTop: 12, background: "#111", color: "#fff" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+            🕊️ حالا باید چکار کنی؟
+          </div>
+          {cycle.whatToDo.map((w, i) => (
+            <div key={i} style={{ fontSize: 14, lineHeight: 1.9, marginBottom: 10, opacity: 0.95 }}>
+              • {w}
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* به خودت این‌ها را بگو */}
+      {cycle.selfTalk && cycle.selfTalk.length > 0 && (
+        <Card style={{ marginTop: 12, background: "#eef4ff" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#1e40af" }}>
+            🗣️ به خودت این‌ها را بگو
+          </div>
+          {cycle.selfTalk.map((phrase, i) => (
+            <div key={i} style={{
+              fontSize: 14, lineHeight: 1.9, color: "#1e40af",
+              marginBottom: 8, padding: "10px 14px", background: "#fff",
+              borderRadius: 8, borderRight: "3px solid #3b82f6"
+            }}>«{phrase}»</div>
+          ))}
+        </Card>
+      )}
+
+      {/* آزمایش‌های کوچک */}
+      {cycle.smallExperiments && cycle.smallExperiments.length > 0 && (
+        <Card style={{ marginTop: 12, background: "#fff8e1" }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#e65100" }}>
+            🧪 آزمایش‌های کوچک
+          </div>
+          {cycle.smallExperiments.map((exp, i) => (
+            <div key={i} style={{
+              fontSize: 14, lineHeight: 1.9, color: "#e65100",
+              marginBottom: 10, paddingRight: 12,
+              borderRight: "3px solid #f39c12"
+            }}>
+              {exp}
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <Card style={{ marginTop: 12, background: "#f6f6f6" }}>
+        <div style={{ fontSize: 13, color: "#666", lineHeight: 1.9, textAlign: "center" }}>
+          این چرخه یک‌شبه درست نمی‌شه.
+          <br />
+          ولی هر بار که ببینی‌اش، یک قدم جلوتری.
+        </div>
+      </Card>
+    </Shell>
+  );
+}
+
+/* =========================================================
+ * ۵. چک‌این روزانه
  * ========================================================= */
 
 function CheckInView({ analysis, onDone, onSkip }) {
@@ -332,7 +571,7 @@ function CheckInView({ analysis, onDone, onSkip }) {
 }
 
 /* =========================================================
- * ۴. حالت SOS
+ * ۶. حالت SOS
  * ========================================================= */
 
 function SOSView({ onBack, onBetter }) {
@@ -437,10 +676,10 @@ function SOSView({ onBack, onBetter }) {
 }
 
 /* =========================================================
- * ۵. صفحه خوش‌آمد
+ * ۷. صفحه خوش‌آمد
  * ========================================================= */
 
-function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSituations, onRelationships }) {
+function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSituations, onRelationships, onLifeCycles }) {
   return (
     <Shell title="الگوهای من" showSOS onSOS={onSOS}>
       <Card>
@@ -465,6 +704,7 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSi
         ) : (
           <Btn onClick={onStart}>شروع ارزیابی</Btn>
         )}
+        <Btn variant="ghost" onClick={onLifeCycles}>🔄 چرخه‌های زندگی</Btn>
         <Btn variant="ghost" onClick={onSituations}>🔍 من الان این حس را دارم</Btn>
         <Btn variant="ghost" onClick={onRelationships}>💞 چطور با دیگران برخورد کنم</Btn>
       </div>
@@ -482,7 +722,7 @@ function WelcomeView({ onStart, onSkipToProfile, hasProfile, phrase, onSOS, onSi
 }
 
 /* =========================================================
- * ۶. صفحه تست YSQ
+ * ۸. صفحه تست YSQ
  * ========================================================= */
 
 function YSQView({ onDone, onBack }) {
@@ -550,10 +790,10 @@ function YSQView({ onDone, onBack }) {
 }
 
 /* =========================================================
- * ۷. صفحه پروفایل
+ * ۹. صفحه پروفایل
  * ========================================================= */
 
-function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, onWins, onCalendar, onSOS, onSituations, onRelationships }) {
+function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, onWins, onCalendar, onSOS, onSituations, onRelationships, onLifeCycles }) {
   if (!analysis) {
     return (
       <Shell title="پروفایل" onBack={onBack}>
@@ -592,6 +832,9 @@ function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, o
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button onClick={onSituations} style={styles.dashBtn}>🔍 موقعیت‌ها</button>
+        <button onClick={onLifeCycles} style={styles.dashBtn}>🔄 چرخه‌های زندگی</button>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <button onClick={onRelationships} style={styles.dashBtn}>💞 روابط</button>
       </div>
 
@@ -677,7 +920,7 @@ function ProfileView({ analysis, onPickSchema, onPickOrigin, onRetake, onBack, o
 }
 
 /* =========================================================
- * ۸. صفحه چرخه
+ * ۱۰. صفحه چرخه
  * ========================================================= */
 
 function CycleView({ schemaId, onDone, onBack }) {
@@ -744,7 +987,7 @@ function CycleView({ schemaId, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۹. خلاصه چرخه
+ * ۱۱. خلاصه چرخه
  * ========================================================= */
 
 function CycleSummaryView({ schemaId, selection, onContinue, onViewOrigin, onBack }) {
@@ -793,7 +1036,7 @@ function CycleSummaryView({ schemaId, selection, onContinue, onViewOrigin, onBac
 }
 
 /* =========================================================
- * ۱۰. صفحه تمرین
+ * ۱۲. صفحه تمرین
  * ========================================================= */
 
 function ExerciseView({ schemaId, selection, onDone, onBack }) {
@@ -820,7 +1063,7 @@ function ExerciseView({ schemaId, selection, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۱. صفحه مأموریت
+ * ۱۳. صفحه مأموریت
  * ========================================================= */
 
 function MissionView({ schemaId, onDone, onBack }) {
@@ -901,7 +1144,7 @@ function MissionView({ schemaId, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۲. ثبت نتیجه
+ * ۱۴. ثبت نتیجه
  * ========================================================= */
 
 function LogResultView({ schemaId, selection, onDone, onBack }) {
@@ -990,7 +1233,7 @@ function LogResultView({ schemaId, selection, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۱۳. صفحه لحظه‌های من
+ * ۱۵. صفحه لحظه‌های من
  * ========================================================= */
 
 function WinsView({ onBack, onSOS }) {
@@ -1069,7 +1312,7 @@ function WinsView({ onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۴. صفحه تقویم
+ * ۱۶. صفحه تقویم
  * ========================================================= */
 
 function CalendarView({ onBack, onSOS }) {
@@ -1133,7 +1376,7 @@ function CalendarView({ onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۵. صفحه موقعیت‌ها
+ * ۱۷. صفحه موقعیت‌ها
  * ========================================================= */
 
 function SituationsView({ onBack, onPickSituation, onSOS }) {
@@ -1179,7 +1422,7 @@ function SituationsView({ onBack, onPickSituation, onSOS }) {
 }
 
 /* =========================================================
- * ۱۶. جزئیات موقعیت — با خودگویی
+ * ۱۸. جزئیات موقعیت
  * ========================================================= */
 
 function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
@@ -1264,7 +1507,6 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
         </div>
       </Card>
 
-      {/* 🗣️ به خودت این‌ها را بگو */}
       {situation.selfTalk && situation.selfTalk.length > 0 && (
         <Card style={{ marginTop: 12, background: "#eef4ff" }}>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: "#1e40af" }}>
@@ -1300,7 +1542,7 @@ function SituationDetailView({ situationId, onBack, onPickSchema, onSOS }) {
 }
 
 /* =========================================================
- * ۱۷. صفحه روابط
+ * ۱۹. صفحه روابط
  * ========================================================= */
 
 function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuide, onSOS }) {
@@ -1383,7 +1625,7 @@ function RelationshipsView({ analysis, onBack, onPickPattern, onPickResponseGuid
 }
 
 /* =========================================================
- * ۱۸. جزئیات الگوی جذب
+ * ۲۰. جزئیات الگوی جذب
  * ========================================================= */
 
 function RelationshipDetailView({ patternId, onBack, onSOS }) {
@@ -1496,7 +1738,7 @@ function RelationshipDetailView({ patternId, onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۱۹. راهنمای برخورد
+ * ۲۱. راهنمای برخورد
  * ========================================================= */
 
 function ResponseGuideView({ schemaId, onBack, onSOS }) {
@@ -1590,7 +1832,7 @@ function ResponseGuideView({ schemaId, onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۲۰. صفحه شکستن چرخه
+ * ۲۲. صفحه شکستن چرخه
  * ========================================================= */
 
 function BreakCycleView({ onBack, onSOS }) {
@@ -1630,7 +1872,7 @@ function BreakCycleView({ onBack, onSOS }) {
 }
 
 /* =========================================================
- * ۲۱. صفحه پیشرفت
+ * ۲۳. صفحه پیشرفت
  * ========================================================= */
 
 function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) {
@@ -1779,7 +2021,7 @@ function ProgressView({ schemaId, onBack, onQuick, onWins, onCalendar, onSOS }) 
 }
 
 /* =========================================================
- * ۲۲. جریان سریع
+ * ۲۴. جریان سریع
  * ========================================================= */
 
 function QuickCheckView({ profiles, onDone, onBack }) {
@@ -1874,7 +2116,7 @@ function QuickCheckView({ profiles, onDone, onBack }) {
 }
 
 /* =========================================================
- * ۲۳. اپ اصلی
+ * ۲۵. اپ اصلی
  * ========================================================= */
 
 export default function App() {
@@ -1884,6 +2126,7 @@ export default function App() {
   const [activeSituationId, setActiveSituationId] = useState(null);
   const [activePatternId, setActivePatternId] = useState(null);
   const [activeGuideSchemaId, setActiveGuideSchemaId] = useState(null);
+  const [activeLifeCycleId, setActiveLifeCycleId] = useState(null);
   const [originSchemaId, setOriginSchemaId] = useState(null);
   const [returnFromOrigin, setReturnFromOrigin] = useState("profile");
   const [selection, setSelection] = useState(null);
@@ -1960,7 +2203,8 @@ export default function App() {
         onStart={() => go("ysq")} onSkipToProfile={() => go("profile")}
         phrase={todayPhrase} onSOS={openSOS}
         onSituations={() => go("situations")}
-        onRelationships={() => go("relationships")} />
+        onRelationships={() => go("relationships")}
+        onLifeCycles={() => go("life_cycles")} />
     );
   }
 
@@ -1984,6 +2228,7 @@ export default function App() {
         onWins={() => go("wins")} onCalendar={() => go("calendar")}
         onSOS={openSOS} onSituations={() => go("situations")}
         onRelationships={() => go("relationships")}
+        onLifeCycles={() => go("life_cycles")}
         onPickSchema={(id) => { setActiveSchemaId(id); go("cycle"); }}
         onPickOrigin={(id) => openOrigin(id, "profile")} />
     );
@@ -1992,6 +2237,25 @@ export default function App() {
   if (view === "origin" && originSchemaId) {
     return <OriginView schemaId={originSchemaId}
       onBack={() => go(returnFromOrigin)} onSOS={openSOS} />;
+  }
+
+  if (view === "life_cycles") {
+    return (
+      <LifeCyclesView
+        onBack={() => go(analysis ? "profile" : "welcome")}
+        onSOS={openSOS}
+        onPickCycle={(id) => { setActiveLifeCycleId(id); go("life_cycle_detail"); }} />
+    );
+  }
+
+  if (view === "life_cycle_detail" && activeLifeCycleId) {
+    return (
+      <LifeCycleDetailView
+        cycleId={activeLifeCycleId}
+        onBack={() => go("life_cycles")}
+        onSOS={openSOS}
+        onPickSchema={(id) => { setActiveSchemaId(id); go("cycle"); }} />
+    );
   }
 
   if (view === "cycle" && activeSchemaId) {
@@ -2117,7 +2381,7 @@ export default function App() {
 }
 
 /* =========================================================
- * ۲۴. استایل‌ها
+ * ۲۶. استایل‌ها
  * ========================================================= */
 
 const styles = {
